@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
+  "scripts": {
+    "start": "webpack-dev-server --hot --inline --content-base src/"
+  },
   "dependencies": {
     "rx": "^4.1.0"
   },
