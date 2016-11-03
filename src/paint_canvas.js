@@ -23,12 +23,20 @@ export default class PaintCanvas {
     this.context.fillRect(0, 0, canvasWidth, canvasHeight)
   }
 
-  rect (x, y, width, height) {
-    this.context.strokeRect(x - width/2, y - height/2, width, height)
+  strokeRect (x, y, width, height) {
+    this.context.strokeRect(x - width / 2, y - height / 2, width, height)
+  }
+
+  fillRect (x, y, width, height) {
+    this.context.fillRect(x - width / 2, y - height / 2, width, height)
   }
 
   strokeStyle (color) {
     this.context.strokeStyle = color
+  }
+
+  fillStyle (color) {
+    this.context.fillStyle = color
   }
 
   canvasSize () {
