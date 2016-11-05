@@ -7,7 +7,8 @@ import COLORS from 'constants/colors'
 const unit = 10
 const width = 40
 const height = 40
-const moveRate = 100
+const moveRate = 300
+const SCORE_PER_EGG = 100
 
 const BG = {
   menu: '#345',
@@ -49,7 +50,7 @@ const nextStep$ = manualMove$
   .merge(intervalMove$)
   .map(mappingCodeToOffset)
 
-const snakeMoved$ = nextStep$
+const snakeMove$ = nextStep$
   .scan((snake, step) => {
     const { head, body } = snake
 
@@ -66,6 +67,24 @@ const eggs$ = Observable.of([
     [ rand(0, width), rand(0, height) ],
 ])
 
+const snakeEatEgg$ = snakeMove$
+  .withLatestFrom(eggs$, (snake, eggs) => {
+    const snakeHead = snake.head
+    let eggBeEaten = null
+    eggs.forEach((egg, index) => {
+      if (egg[0] === snakeHead[0] && egg[1] === snakeHead[1]) {
+        eggBeEaten = index
+      }
+    })
+
+    return eggBeEaten
+  })
+  .filter((eggBeEaten) => eggBeEaten !== null)
+
+const score$ = snakeEatEgg$
+  .scan((score) => score + SCORE_PER_EGG, 0)
+  .startWith(0)
+
 const updateScene$ = Observable.generate(
     0,
     function (x) { return true },
@@ -74,7 +93,10 @@ const updateScene$ = Observable.generate(
     Scheduler.requestAnimationFrame
   )
   .skipUntil(start$)
-  .withLatestFrom(snakeMoved$, eggs$, (_, snake, eggs) => [ snake, eggs ])
+  .withLatestFrom(
+    snakeMove$, eggs$, score$,
+    (_, snake, eggs, score) => [ snake, eggs, score ]
+  )
 
 const pc = prepareCanvas()
 drawMenu()
@@ -97,10 +119,11 @@ function resetScene () {
   pc.clear(BG.gaming)
 }
 
-function draw ([ snake, eggs ]) {
+function draw ([ snake, eggs, score ]) {
   resetScene()
   drawEggs(eggs)
   drawSnake(snake)
+  drawScore(score)
 }
 
 function drawEggs (eggs) {
@@ -123,6 +146,12 @@ function drawSnake (snake) {
     drawSnakeJoint(position[0], position[1])
     return position
   }, head)
+}
+
+function drawScore (score) {
+  pc.context.font = '14px sans-serif'
+  pc.context.fillStyle = COLORS.yellow
+  pc.context.fillText(`$ ${score}`, 10, 20)
 }
 
 function drawSnakeJoint (x, y) {
