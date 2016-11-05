@@ -1,5 +1,6 @@
 import './index.sass'
-import { Observable } from 'rx'
+import { Observable, Scheduler } from 'rx'
+import 'rx-dom'
 import PaintCanvas from './paint_canvas'
 import COLORS from 'constants/colors'
 
@@ -7,7 +8,6 @@ const unit = 10
 const width = 40
 const height = 40
 const moveRate = 100
-const fps = 40
 
 const BG = {
   menu: '#345',
@@ -66,7 +66,13 @@ const eggs$ = Observable.of([
     [ rand(0, width), rand(0, height) ],
 ])
 
-const updateScene$ = Observable.interval(fps)
+const updateScene$ = Observable.generate(
+    0,
+    function (x) { return true },
+    function (x) { return x + 1 },
+    function (x) { return x },
+    Scheduler.requestAnimationFrame
+  )
   .skipUntil(start$)
   .withLatestFrom(snakeMoved$, eggs$, (_, snake, eggs) => [ snake, eggs ])
 
