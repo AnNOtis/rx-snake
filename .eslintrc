@@ -1,3 +1,6 @@
 {
-  "extends": "commandp"
+  "extends": "commandp",
+  "env": {
+    "mocha": true,
+  }
 }
