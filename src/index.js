@@ -87,7 +87,7 @@ function generateEggIfBeEaten (world) {
 
   eggs.forEach((egg, index) => {
     if (egg[0] === head[0] && egg[1] === head[1]) {
-      eggs = replaceItem(eggs, index, [ rand(0, width), rand(0, height) ])
+      eggs = replaceItem(eggs, index, randomEggWithout([ ...eggs, ...wholeSnake(world) ]))
       isEggBeEaten = true
     }
   })
@@ -106,6 +106,19 @@ function calculateScore (world) {
     isEggBeEaten: false,
     score: score + (isEggBeEaten ? SCORE_PER_EGG : 0),
   }
+}
+
+function randomEggWithout (rejectPoints = []) {
+  let isAcceptResult = false
+  let result
+  while (!isAcceptResult) {
+    result = [ rand(0, width), rand(0, height) ]
+    isAcceptResult = rejectPoints.every((rejectPoint) => {
+      return rejectPoint[0] !== result[0] && rejectPoint[1] !== result[1]
+    })
+  }
+
+  return result
 }
 
 const updateScene$ = Observable.generate(
@@ -159,16 +172,24 @@ function drawEggs (eggs) {
 }
 
 function drawSnake (snake) {
-  const { head, body } = snake
+  wholeSnake(snake).forEach((position) => {
+    drawSnakeJoint(position[0], position[1])
+  })
+}
+
+function wholeSnake ({ head, body }) {
+  const wholeSnake = []
 
   ;[ [ 0, 0 ], ...body ].reduce((acc, current) => {
     const position = [
       acc[0] + current[0],
       acc[1] + current[1],
     ]
-    drawSnakeJoint(position[0], position[1])
+    wholeSnake.push(position)
     return position
   }, head)
+
+  return wholeSnake
 }
 
 function drawScore (score) {
