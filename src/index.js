@@ -3,6 +3,7 @@ import { Observable, Scheduler } from 'rx'
 import 'rx-dom'
 import PaintCanvas from './paint_canvas'
 import COLORS from 'constants/colors'
+import { replaceItem, flow } from 'utils'
 
 const unit = 10
 const width = 40
@@ -15,7 +16,7 @@ const BG = {
   gaming: '#333',
 }
 
-const INIT_SNAKE =
+const INIT_GAME_WORLD =
   {
     head: [ Math.floor(width / 2), Math.floor(height / 2) ],
     body: [
@@ -28,6 +29,13 @@ const INIT_SNAKE =
       [ 0, 1 ],
       [ 0, 1 ],
     ],
+    eggs: [
+      [ rand(0, width), rand(0, height) ],
+      [ rand(0, width), rand(0, height) ],
+      [ rand(0, width), rand(0, height) ],
+    ],
+    isEggBeEaten: false,
+    score: 0,
   }
 
 const keyup$ = Observable.fromEvent(document, 'keyup')
@@ -50,40 +58,55 @@ const nextStep$ = manualMove$
   .merge(intervalMove$)
   .map(mappingCodeToOffset)
 
-const snakeMove$ = nextStep$
-  .scan((snake, step) => {
-    const { head, body } = snake
+const worldChange$ = nextStep$
+  .scan((world, step) => {
+    return flow([
+      moveSnake(step),
+      generateEggIfBeEaten,
+      calculateScore,
+    ])(world)
+  }, INIT_GAME_WORLD)
+  .startWith(INIT_GAME_WORLD)
+
+function moveSnake (step) {
+  return (world) => {
+    const { head, body } = world
 
     return {
+      ...world,
       head: [ head[0] + step[0], head[1] + step[1] ],
       body: [ [ -step[0], -step[1] ], ...body.slice(0, -1) ],
     }
-  }, INIT_SNAKE)
-  .startWith(INIT_SNAKE)
+  }
+}
 
-const eggs$ = Observable.of([
-    [ rand(0, width), rand(0, height) ],
-    [ rand(0, width), rand(0, height) ],
-    [ rand(0, width), rand(0, height) ],
-])
+function generateEggIfBeEaten (world) {
+  const head = world.head
+  let eggs = world.eggs
+  let isEggBeEaten = false
 
-const snakeEatEgg$ = snakeMove$
-  .withLatestFrom(eggs$, (snake, eggs) => {
-    const snakeHead = snake.head
-    let eggBeEaten = null
-    eggs.forEach((egg, index) => {
-      if (egg[0] === snakeHead[0] && egg[1] === snakeHead[1]) {
-        eggBeEaten = index
-      }
-    })
-
-    return eggBeEaten
+  eggs.forEach((egg, index) => {
+    if (egg[0] === head[0] && egg[1] === head[1]) {
+      eggs = replaceItem(eggs, index, [ rand(0, width), rand(0, height) ])
+      isEggBeEaten = true
+    }
   })
-  .filter((eggBeEaten) => eggBeEaten !== null)
 
-const score$ = snakeEatEgg$
-  .scan((score) => score + SCORE_PER_EGG, 0)
-  .startWith(0)
+  return { ...world, eggs, isEggBeEaten }
+}
+
+function calculateScore (world) {
+  const {
+    score,
+    isEggBeEaten,
+  } = world
+
+  return {
+    ...world,
+    isEggBeEaten: false,
+    score: score + (isEggBeEaten ? SCORE_PER_EGG : 0),
+  }
+}
 
 const updateScene$ = Observable.generate(
     0,
@@ -94,8 +117,8 @@ const updateScene$ = Observable.generate(
   )
   .skipUntil(start$)
   .withLatestFrom(
-    snakeMove$, eggs$, score$,
-    (_, snake, eggs, score) => [ snake, eggs, score ]
+    worldChange$,
+    (_, world) => world
   )
 
 const pc = prepareCanvas()
@@ -119,10 +142,10 @@ function resetScene () {
   pc.clear(BG.gaming)
 }
 
-function draw ([ snake, eggs, score ]) {
+function draw ({ head, body, eggs, score }) {
   resetScene()
   drawEggs(eggs)
-  drawSnake(snake)
+  drawSnake({ head, body })
   drawScore(score)
 }
 
