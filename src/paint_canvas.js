@@ -31,6 +31,20 @@ export default class PaintCanvas {
     this.context.fillRect(x - width / 2, y - height / 2, width, height)
   }
 
+  fillText (text, x, y, maxWidth) {
+    this.context.textAlign = 'center'
+    this.context.fillText(text, x, y, maxWidth)
+  }
+
+  strokeText (text, x, y, maxWidth) {
+    this.context.textAlign = 'center'
+    this.context.strokeText(text, x, y, maxWidth)
+  }
+
+  font (config) {
+    this.context.font = config
+  }
+
   strokeStyle (color) {
     this.context.strokeStyle = color
   }

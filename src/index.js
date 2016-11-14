@@ -8,11 +8,11 @@ import { replaceItem, flow } from 'utils'
 const unit = 10
 const width = 40
 const height = 40
-const moveRate = 300
+const moveRate = 150
 const SCORE_PER_EGG = 100
 
 const BG = {
-  menu: '#345',
+  menu: '#333',
   gaming: '#333',
 }
 
@@ -173,7 +173,17 @@ function prepareCanvas () {
 }
 
 function drawMenu () {
+  const canvasWidth = width * unit
+  const canvasHeight = height * unit
+
   pc.clear(BG.menu)
+  pc.font(`bold ${canvasWidth / 5}px monospace`)
+  pc.fillStyle(COLORS.yellow)
+  pc.fillText('Snake', canvasWidth / 2, canvasHeight * 0.3, canvasWidth)
+
+  pc.font(`${canvasWidth / 20}px monospace`)
+  pc.fillStyle(COLORS.green)
+  pc.fillText('press "space" to start', canvasWidth / 2, canvasHeight * 0.6, canvasWidth)
 }
 
 function resetScene () {
@@ -189,7 +199,7 @@ function draw ({ head, body, eggs, score }) {
 
 function drawEggs (eggs) {
   eggs.forEach((egg, _) => {
-    pc.fillStyle(COLORS.red)
+    pc.fillStyle(COLORS.yellow)
     pc.strokeStyle(COLORS.yellow)
     pc.fillRect(egg[0] * unit, egg[1] * unit, unit, unit)
     pc.strokeRect(egg[0] * unit, egg[1] * unit, unit, unit)
@@ -218,8 +228,9 @@ function wholeSnake ({ head, body }) {
 }
 
 function drawScore (score) {
-  pc.context.font = '14px sans-serif'
-  pc.context.fillStyle = COLORS.yellow
+  pc.font('14px sans-serif')
+  pc.fillStyle(COLORS.yellow)
+  pc.context.textAlign = 'left'
   pc.context.fillText(`$ ${score}`, 10, 20)
 }
 
