@@ -63,6 +63,7 @@ const worldChange$ = nextStep$
     return flow([
       moveSnake(step),
       generateEggIfBeEaten,
+      growWhenSnakeEatEgg,
       calculateScore,
     ])(world)
   }, INIT_GAME_WORLD)
@@ -76,23 +77,47 @@ function moveSnake (step) {
       ...world,
       head: [ head[0] + step[0], head[1] + step[1] ],
       body: [ [ -step[0], -step[1] ], ...body.slice(0, -1) ],
+      tail: [ ...body.slice(body.length - 1) ],
     }
   }
 }
 
 function generateEggIfBeEaten (world) {
-  const head = world.head
-  let eggs = world.eggs
+  const {
+    head,
+    eggs,
+  } = world
+
   let isEggBeEaten = false
+  let newEggs = eggs
 
   eggs.forEach((egg, index) => {
     if (egg[0] === head[0] && egg[1] === head[1]) {
-      eggs = replaceItem(eggs, index, randomEggWithout([ ...eggs, ...wholeSnake(world) ]))
+      newEggs = replaceItem(eggs, index, randomEggWithout([ ...eggs, ...wholeSnake(world) ]))
       isEggBeEaten = true
     }
   })
 
-  return { ...world, eggs, isEggBeEaten }
+  return {
+    ...world,
+    eggs: newEggs,
+    isEggBeEaten,
+  }
+}
+
+function growWhenSnakeEatEgg (world) {
+  const {
+    body,
+    tail,
+    isEggBeEaten,
+  } = world
+
+  const newBody = isEggBeEaten ? [ ...body, tail ] : body
+
+  return {
+    ...world,
+    body: newBody,
+  }
 }
 
 function calculateScore (world) {
