@@ -11,6 +11,12 @@ const height = 40
 const moveRate = 150
 const SCORE_PER_EGG = 100
 
+const CANVAS_WIDTH = width * unit
+const CANVAS_HEIGHT = height * unit
+
+const TITLE_FONT_SIZE = CANVAS_WIDTH / 6
+const SUBTITLE_FONT_SIZE = CANVAS_WIDTH / 20
+
 const BG = {
   menu: '#333',
   gaming: '#333',
@@ -20,14 +26,7 @@ const INIT_GAME_WORLD =
   {
     head: [ Math.floor(width / 2), Math.floor(height / 2) ],
     body: [
-      [ 0, 1 ],
-      [ 0, 1 ],
-      [ 0, 1 ],
-      [ 0, 1 ],
-      [ 0, 1 ],
-      [ 0, 1 ],
-      [ 0, 1 ],
-      [ 0, 1 ],
+      [ 0, 1 ], [ 0, 1 ], [ 0, 1 ], [ 0, 1 ], [ 0, 1 ],
     ],
     eggs: [
       [ rand(0, width), rand(0, height) ],
@@ -36,6 +35,7 @@ const INIT_GAME_WORLD =
     ],
     isEggBeEaten: false,
     score: 0,
+    isCollision: false,
   }
 
 const keyup$ = Observable.fromEvent(document, 'keyup')
@@ -65,6 +65,7 @@ const worldChange$ = nextStep$
       generateEggIfBeEaten,
       growWhenSnakeEatEgg,
       calculateScore,
+      checkCollision,
     ])(world)
   }, INIT_GAME_WORLD)
   .startWith(INIT_GAME_WORLD)
@@ -83,10 +84,7 @@ function moveSnake (step) {
 }
 
 function generateEggIfBeEaten (world) {
-  const {
-    head,
-    eggs,
-  } = world
+  const { head, eggs } = world
 
   let isEggBeEaten = false
   let newEggs = eggs
@@ -106,14 +104,9 @@ function generateEggIfBeEaten (world) {
 }
 
 function growWhenSnakeEatEgg (world) {
-  const {
-    body,
-    tail,
-    isEggBeEaten,
-  } = world
+  const { body, tail, isEggBeEaten } = world
 
   const newBody = isEggBeEaten ? [ ...body, tail ] : body
-
   return {
     ...world,
     body: newBody,
@@ -121,10 +114,7 @@ function growWhenSnakeEatEgg (world) {
 }
 
 function calculateScore (world) {
-  const {
-    score,
-    isEggBeEaten,
-  } = world
+  const { score, isEggBeEaten } = world
 
   return {
     ...world,
@@ -134,16 +124,30 @@ function calculateScore (world) {
 }
 
 function randomEggWithout (rejectPoints = []) {
-  let isAcceptResult = false
   let result
-  while (!isAcceptResult) {
+  let isValidPosition = false
+  while (!isValidPosition) {
     result = [ rand(0, width), rand(0, height) ]
-    isAcceptResult = rejectPoints.every((rejectPoint) => {
+    isValidPosition = rejectPoints.every((rejectPoint) => {
       return rejectPoint[0] !== result[0] && rejectPoint[1] !== result[1]
     })
   }
 
   return result
+}
+
+function checkCollision (world) {
+  const { head, body } = world
+  const [ headX, headY ] = head
+
+  const isCollideWithWall = headX < 0 || headY < 0 || headX > width || headY > height
+  if (isCollideWithWall) return { ...world, isCollision: true }
+
+  const isSnakeBiteItSelf = wholeSnake({ head, body }).slice(1)
+    .some(([ jointX, jointY ]) => jointX === headX && jointY === headY)
+  if (isSnakeBiteItSelf) return { ...world, isCollision: true }
+
+  return world
 }
 
 const updateScene$ = Observable.generate(
@@ -162,35 +166,68 @@ const updateScene$ = Observable.generate(
 const pc = prepareCanvas()
 drawMenu()
 
-start$.subscribe(resetScene)
-updateScene$.subscribe(draw)
+const startSubscription = start$.subscribe(resetScene)
+const updateSceneSubscription = updateScene$.subscribe(draw)
 
 function prepareCanvas () {
   return new PaintCanvas(
     document.getElementById('game'),
-    { width: unit * width, height: unit * height }
+    { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }
   )
 }
 
 function drawMenu () {
-  const canvasWidth = width * unit
-  const canvasHeight = height * unit
-
   pc.clear(BG.menu)
-  pc.font(`bold ${canvasWidth / 5}px monospace`)
+  pc.font(`bold ${CANVAS_WIDTH / 5}px monospace`)
   pc.fillStyle(COLORS.yellow)
-  pc.fillText('Snake', canvasWidth / 2, canvasHeight * 0.3, canvasWidth)
+  pc.fillText('Snake', CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.4, CANVAS_WIDTH)
 
-  pc.font(`${canvasWidth / 20}px monospace`)
+  pc.font(`${CANVAS_WIDTH / 20}px monospace`)
   pc.fillStyle(COLORS.green)
-  pc.fillText('press "space" to start', canvasWidth / 2, canvasHeight * 0.6, canvasWidth)
+  pc.fillText('press "space" to start', CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.6, CANVAS_WIDTH)
+}
+
+function gameOver (score) {
+  startSubscription.dispose()
+  updateSceneSubscription.dispose()
+  fadeOutThan(() => drawGameOver(score))
+}
+
+function fadeOutThan (afterFinishFadeOut) {
+  pc.context.globalAlpha = 0.2
+  let count = 8
+  const fadeOutTimer = setInterval(() => {
+    pc.clear(BG.menu)
+    count--
+
+    if (count === 0) {
+      clearInterval(fadeOutTimer)
+      pc.context.globalAlpha = 1
+      pc.clear(BG.menu)
+      afterFinishFadeOut()
+    }
+  }, 100)
+}
+
+function drawGameOver (score) {
+  pc.clear(BG.menu)
+
+  pc.font(`bold ${TITLE_FONT_SIZE}px monospace`)
+  pc.fillStyle(COLORS.yellow)
+  pc.fillText('Game Over', CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.4, CANVAS_WIDTH)
+
+  pc.font(`${SUBTITLE_FONT_SIZE}px monospace`)
+  pc.fillStyle(COLORS.green)
+  pc.fillText(`your score: ${score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.6, CANVAS_WIDTH)
 }
 
 function resetScene () {
   pc.clear(BG.gaming)
 }
 
-function draw ({ head, body, eggs, score }) {
+function draw ({ head, body, eggs, score, isCollision }) {
+  if (isCollision) return gameOver(score)
+
   resetScene()
   drawEggs(eggs)
   drawSnake({ head, body })

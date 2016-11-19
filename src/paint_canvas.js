@@ -24,11 +24,11 @@ export default class PaintCanvas {
   }
 
   strokeRect (x, y, width, height) {
-    this.context.strokeRect(x - width / 2, y - height / 2, width, height)
+    this.context.strokeRect(x, y, width, height)
   }
 
   fillRect (x, y, width, height) {
-    this.context.fillRect(x - width / 2, y - height / 2, width, height)
+    this.context.fillRect(x, y, width, height)
   }
 
   fillText (text, x, y, maxWidth) {
