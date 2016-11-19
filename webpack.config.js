@@ -1,3 +1,4 @@
+const ExtractTextPlugin = require('extract-text-webpack-plugin')
 const path = require('path')
 const PATH = {
   src: path.join(__dirname, 'src'),
@@ -24,8 +25,14 @@ module.exports = {
       {
         test: /\.sass$/,
         include: PATH.src,
-        loaders: [ 'style', 'css?sourceMap', 'sass?sourceMap' ],
+        loader: ExtractTextPlugin.extract(
+          'style-loader',
+          'css-loader?sourceMap!sass-loader?sourceMap'
+        ),
       },
     ],
   },
+  plugins: [
+    new ExtractTextPlugin('styles.css'),
+  ],
 }
