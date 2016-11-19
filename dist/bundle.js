@@ -46,6 +46,8 @@
 
 	'use strict';
 	
+	var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+	
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 	
 	__webpack_require__(1);
@@ -71,20 +73,27 @@
 	var unit = 10;
 	var width = 40;
 	var height = 40;
-	var moveRate = 300;
+	var moveRate = 150;
 	var SCORE_PER_EGG = 100;
 	
+	var CANVAS_WIDTH = width * unit;
+	var CANVAS_HEIGHT = height * unit;
+	
+	var TITLE_FONT_SIZE = CANVAS_WIDTH / 6;
+	var SUBTITLE_FONT_SIZE = CANVAS_WIDTH / 20;
+	
 	var BG = {
-	  menu: '#345',
+	  menu: '#333',
 	  gaming: '#333'
 	};
 	
 	var INIT_GAME_WORLD = {
 	  head: [Math.floor(width / 2), Math.floor(height / 2)],
-	  body: [[0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1]],
+	  body: [[0, 1], [0, 1], [0, 1], [0, 1], [0, 1]],
 	  eggs: [[rand(0, width), rand(0, height)], [rand(0, width), rand(0, height)], [rand(0, width), rand(0, height)]],
 	  isEggBeEaten: false,
-	  score: 0
+	  score: 0,
+	  isCollision: false
 	};
 	
 	var keyup$ = _rx.Observable.fromEvent(document, 'keyup').pluck('code');
@@ -104,7 +113,7 @@
 	var nextStep$ = manualMove$.merge(intervalMove$).map(mappingCodeToOffset);
 	
 	var worldChange$ = nextStep$.scan(function (world, step) {
-	  return (0, _utils.flow)([moveSnake(step), generateEggIfBeEaten, calculateScore])(world);
+	  return (0, _utils.flow)([moveSnake(step), generateEggIfBeEaten, growWhenSnakeEatEgg, calculateScore, checkCollision])(world);
 	}, INIT_GAME_WORLD).startWith(INIT_GAME_WORLD);
 	
 	function moveSnake(step) {
@@ -115,24 +124,43 @@
 	
 	    return _extends({}, world, {
 	      head: [head[0] + step[0], head[1] + step[1]],
-	      body: [[-step[0], -step[1]]].concat(_toConsumableArray(body.slice(0, -1)))
+	      body: [[-step[0], -step[1]]].concat(_toConsumableArray(body.slice(0, -1))),
+	      tail: [].concat(_toConsumableArray(body.slice(body.length - 1)))
 	    });
 	  };
 	}
 	
 	function generateEggIfBeEaten(world) {
-	  var head = world.head;
-	  var eggs = world.eggs;
+	  var head = world.head,
+	      eggs = world.eggs;
+	
+	
 	  var isEggBeEaten = false;
+	  var newEggs = eggs;
 	
 	  eggs.forEach(function (egg, index) {
 	    if (egg[0] === head[0] && egg[1] === head[1]) {
-	      eggs = (0, _utils.replaceItem)(eggs, index, randomEggWithout([].concat(_toConsumableArray(eggs), _toConsumableArray(wholeSnake(world)))));
+	      newEggs = (0, _utils.replaceItem)(eggs, index, randomEggWithout([].concat(_toConsumableArray(eggs), _toConsumableArray(wholeSnake(world)))));
 	      isEggBeEaten = true;
 	    }
 	  });
 	
-	  return _extends({}, world, { eggs: eggs, isEggBeEaten: isEggBeEaten });
+	  return _extends({}, world, {
+	    eggs: newEggs,
+	    isEggBeEaten: isEggBeEaten
+	  });
+	}
+	
+	function growWhenSnakeEatEgg(world) {
+	  var body = world.body,
+	      tail = world.tail,
+	      isEggBeEaten = world.isEggBeEaten;
+	
+	
+	  var newBody = isEggBeEaten ? [].concat(_toConsumableArray(body), [tail]) : body;
+	  return _extends({}, world, {
+	    body: newBody
+	  });
 	}
 	
 	function calculateScore(world) {
@@ -149,16 +177,39 @@
 	function randomEggWithout() {
 	  var rejectPoints = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : [];
 	
-	  var isAcceptResult = false;
 	  var result = void 0;
-	  while (!isAcceptResult) {
+	  var isValidPosition = false;
+	  while (!isValidPosition) {
 	    result = [rand(0, width), rand(0, height)];
-	    isAcceptResult = rejectPoints.every(function (rejectPoint) {
+	    isValidPosition = rejectPoints.every(function (rejectPoint) {
 	      return rejectPoint[0] !== result[0] && rejectPoint[1] !== result[1];
 	    });
 	  }
 	
 	  return result;
+	}
+	
+	function checkCollision(world) {
+	  var head = world.head,
+	      body = world.body;
+	
+	  var _head = _slicedToArray(head, 2),
+	      headX = _head[0],
+	      headY = _head[1];
+	
+	  var isCollideWithWall = headX < 0 || headY < 0 || headX > width || headY > height;
+	  if (isCollideWithWall) return _extends({}, world, { isCollision: true });
+	
+	  var isSnakeBiteItSelf = wholeSnake({ head: head, body: body }).slice(1).some(function (_ref) {
+	    var _ref2 = _slicedToArray(_ref, 2),
+	        jointX = _ref2[0],
+	        jointY = _ref2[1];
+	
+	    return jointX === headX && jointY === headY;
+	  });
+	  if (isSnakeBiteItSelf) return _extends({}, world, { isCollision: true });
+	
+	  return world;
 	}
 	
 	var updateScene$ = _rx.Observable.generate(0, function (x) {
@@ -174,26 +225,72 @@
 	var pc = prepareCanvas();
 	drawMenu();
 	
-	start$.subscribe(resetScene);
-	updateScene$.subscribe(draw);
+	var startSubscription = start$.subscribe(resetScene);
+	var updateSceneSubscription = updateScene$.subscribe(draw);
 	
 	function prepareCanvas() {
-	  return new _paint_canvas2.default(document.getElementById('game'), { width: unit * width, height: unit * height });
+	  return new _paint_canvas2.default(document.getElementById('game'), { width: CANVAS_WIDTH, height: CANVAS_HEIGHT });
 	}
 	
 	function drawMenu() {
 	  pc.clear(BG.menu);
+	  pc.font('bold ' + CANVAS_WIDTH / 5 + 'px monospace');
+	  pc.fillStyle(_colors2.default.yellow);
+	  pc.fillText('Snake', CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.4, CANVAS_WIDTH);
+	
+	  pc.font(CANVAS_WIDTH / 20 + 'px monospace');
+	  pc.fillStyle(_colors2.default.green);
+	  pc.fillText('press "space" to start', CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.6, CANVAS_WIDTH);
+	}
+	
+	function gameOver(score) {
+	  startSubscription.dispose();
+	  updateSceneSubscription.dispose();
+	  fadeOutThan(function () {
+	    return drawGameOver(score);
+	  });
+	}
+	
+	function fadeOutThan(afterFinishFadeOut) {
+	  pc.context.globalAlpha = 0.2;
+	  var count = 8;
+	  var fadeOutTimer = setInterval(function () {
+	    pc.clear(BG.menu);
+	    count--;
+	
+	    if (count === 0) {
+	      clearInterval(fadeOutTimer);
+	      pc.context.globalAlpha = 1;
+	      pc.clear(BG.menu);
+	      afterFinishFadeOut();
+	    }
+	  }, 100);
+	}
+	
+	function drawGameOver(score) {
+	  pc.clear(BG.menu);
+	
+	  pc.font('bold ' + TITLE_FONT_SIZE + 'px monospace');
+	  pc.fillStyle(_colors2.default.yellow);
+	  pc.fillText('Game Over', CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.4, CANVAS_WIDTH);
+	
+	  pc.font(SUBTITLE_FONT_SIZE + 'px monospace');
+	  pc.fillStyle(_colors2.default.green);
+	  pc.fillText('your score: ' + score, CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.6, CANVAS_WIDTH);
 	}
 	
 	function resetScene() {
 	  pc.clear(BG.gaming);
 	}
 	
-	function draw(_ref) {
-	  var head = _ref.head,
-	      body = _ref.body,
-	      eggs = _ref.eggs,
-	      score = _ref.score;
+	function draw(_ref3) {
+	  var head = _ref3.head,
+	      body = _ref3.body,
+	      eggs = _ref3.eggs,
+	      score = _ref3.score,
+	      isCollision = _ref3.isCollision;
+	
+	  if (isCollision) return gameOver(score);
 	
 	  resetScene();
 	  drawEggs(eggs);
@@ -203,7 +300,7 @@
 	
 	function drawEggs(eggs) {
 	  eggs.forEach(function (egg, _) {
-	    pc.fillStyle(_colors2.default.red);
+	    pc.fillStyle(_colors2.default.yellow);
 	    pc.strokeStyle(_colors2.default.yellow);
 	    pc.fillRect(egg[0] * unit, egg[1] * unit, unit, unit);
 	    pc.strokeRect(egg[0] * unit, egg[1] * unit, unit, unit);
@@ -216,9 +313,9 @@
 	  });
 	}
 	
-	function wholeSnake(_ref2) {
-	  var head = _ref2.head,
-	      body = _ref2.body;
+	function wholeSnake(_ref4) {
+	  var head = _ref4.head,
+	      body = _ref4.body;
 	
 	  var wholeSnake = [];[[0, 0]].concat(_toConsumableArray(body)).reduce(function (acc, current) {
 	    var position = [acc[0] + current[0], acc[1] + current[1]];
@@ -230,8 +327,9 @@
 	}
 	
 	function drawScore(score) {
-	  pc.context.font = '14px sans-serif';
-	  pc.context.fillStyle = _colors2.default.yellow;
+	  pc.font('14px sans-serif');
+	  pc.fillStyle(_colors2.default.yellow);
+	  pc.context.textAlign = 'left';
 	  pc.context.fillText('$ ' + score, 10, 20);
 	}
 	
@@ -14664,12 +14762,29 @@
 	  }, {
 	    key: 'strokeRect',
 	    value: function strokeRect(x, y, width, height) {
-	      this.context.strokeRect(x - width / 2, y - height / 2, width, height);
+	      this.context.strokeRect(x, y, width, height);
 	    }
 	  }, {
 	    key: 'fillRect',
 	    value: function fillRect(x, y, width, height) {
-	      this.context.fillRect(x - width / 2, y - height / 2, width, height);
+	      this.context.fillRect(x, y, width, height);
+	    }
+	  }, {
+	    key: 'fillText',
+	    value: function fillText(text, x, y, maxWidth) {
+	      this.context.textAlign = 'center';
+	      this.context.fillText(text, x, y, maxWidth);
+	    }
+	  }, {
+	    key: 'strokeText',
+	    value: function strokeText(text, x, y, maxWidth) {
+	      this.context.textAlign = 'center';
+	      this.context.strokeText(text, x, y, maxWidth);
+	    }
+	  }, {
+	    key: 'font',
+	    value: function font(config) {
+	      this.context.font = config;
 	    }
 	  }, {
 	    key: 'strokeStyle',
@@ -14711,7 +14826,8 @@
 	});
 	exports.default = {
 	  yellow: '#fecd30',
-	  red: '#fa5562'
+	  red: '#fa5562',
+	  green: 'green'
 	};
 
 /***/ },
