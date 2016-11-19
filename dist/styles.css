@@ -1,0 +1,14 @@
+#game {
+  display: block;
+  position: absolute;
+  margin: auto;
+  background: #345;
+  top: 50%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-60%);
+  text-align: center; }
+
+.title {
+  text-align: center; }
+
+/*# sourceMappingURL=styles.css.map*/
