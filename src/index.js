@@ -8,11 +8,17 @@ import { replaceItem, flow } from 'utils'
 const unit = 10
 const width = 40
 const height = 40
-const moveRate = 300
+const moveRate = 150
 const SCORE_PER_EGG = 100
 
+const CANVAS_WIDTH = width * unit
+const CANVAS_HEIGHT = height * unit
+
+const TITLE_FONT_SIZE = CANVAS_WIDTH / 6
+const SUBTITLE_FONT_SIZE = CANVAS_WIDTH / 20
+
 const BG = {
-  menu: '#345',
+  menu: '#333',
   gaming: '#333',
 }
 
@@ -20,14 +26,7 @@ const INIT_GAME_WORLD =
   {
     head: [ Math.floor(width / 2), Math.floor(height / 2) ],
     body: [
-      [ 0, 1 ],
-      [ 0, 1 ],
-      [ 0, 1 ],
-      [ 0, 1 ],
-      [ 0, 1 ],
-      [ 0, 1 ],
-      [ 0, 1 ],
-      [ 0, 1 ],
+      [ 0, 1 ], [ 0, 1 ], [ 0, 1 ], [ 0, 1 ], [ 0, 1 ],
     ],
     eggs: [
       [ rand(0, width), rand(0, height) ],
@@ -36,6 +35,7 @@ const INIT_GAME_WORLD =
     ],
     isEggBeEaten: false,
     score: 0,
+    isCollision: false,
   }
 
 const keyup$ = Observable.fromEvent(document, 'keyup')
@@ -63,7 +63,9 @@ const worldChange$ = nextStep$
     return flow([
       moveSnake(step),
       generateEggIfBeEaten,
+      growWhenSnakeEatEgg,
       calculateScore,
+      checkCollision,
     ])(world)
   }, INIT_GAME_WORLD)
   .startWith(INIT_GAME_WORLD)
@@ -76,30 +78,43 @@ function moveSnake (step) {
       ...world,
       head: [ head[0] + step[0], head[1] + step[1] ],
       body: [ [ -step[0], -step[1] ], ...body.slice(0, -1) ],
+      tail: [ ...body.slice(body.length - 1) ],
     }
   }
 }
 
 function generateEggIfBeEaten (world) {
-  const head = world.head
-  let eggs = world.eggs
+  const { head, eggs } = world
+
   let isEggBeEaten = false
+  let newEggs = eggs
 
   eggs.forEach((egg, index) => {
     if (egg[0] === head[0] && egg[1] === head[1]) {
-      eggs = replaceItem(eggs, index, randomEggWithout([ ...eggs, ...wholeSnake(world) ]))
+      newEggs = replaceItem(eggs, index, randomEggWithout([ ...eggs, ...wholeSnake(world) ]))
       isEggBeEaten = true
     }
   })
 
-  return { ...world, eggs, isEggBeEaten }
+  return {
+    ...world,
+    eggs: newEggs,
+    isEggBeEaten,
+  }
+}
+
+function growWhenSnakeEatEgg (world) {
+  const { body, tail, isEggBeEaten } = world
+
+  const newBody = isEggBeEaten ? [ ...body, tail ] : body
+  return {
+    ...world,
+    body: newBody,
+  }
 }
 
 function calculateScore (world) {
-  const {
-    score,
-    isEggBeEaten,
-  } = world
+  const { score, isEggBeEaten } = world
 
   return {
     ...world,
@@ -109,16 +124,30 @@ function calculateScore (world) {
 }
 
 function randomEggWithout (rejectPoints = []) {
-  let isAcceptResult = false
   let result
-  while (!isAcceptResult) {
+  let isValidPosition = false
+  while (!isValidPosition) {
     result = [ rand(0, width), rand(0, height) ]
-    isAcceptResult = rejectPoints.every((rejectPoint) => {
+    isValidPosition = rejectPoints.every((rejectPoint) => {
       return rejectPoint[0] !== result[0] && rejectPoint[1] !== result[1]
     })
   }
 
   return result
+}
+
+function checkCollision (world) {
+  const { head, body } = world
+  const [ headX, headY ] = head
+
+  const isCollideWithWall = headX < 0 || headY < 0 || headX > width || headY > height
+  if (isCollideWithWall) return { ...world, isCollision: true }
+
+  const isSnakeBiteItSelf = wholeSnake({ head, body }).slice(1)
+    .some(([ jointX, jointY ]) => jointX === headX && jointY === headY)
+  if (isSnakeBiteItSelf) return { ...world, isCollision: true }
+
+  return world
 }
 
 const updateScene$ = Observable.generate(
@@ -137,25 +166,68 @@ const updateScene$ = Observable.generate(
 const pc = prepareCanvas()
 drawMenu()
 
-start$.subscribe(resetScene)
-updateScene$.subscribe(draw)
+const startSubscription = start$.subscribe(resetScene)
+const updateSceneSubscription = updateScene$.subscribe(draw)
 
 function prepareCanvas () {
   return new PaintCanvas(
     document.getElementById('game'),
-    { width: unit * width, height: unit * height }
+    { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }
   )
 }
 
 function drawMenu () {
   pc.clear(BG.menu)
+  pc.font(`bold ${CANVAS_WIDTH / 5}px monospace`)
+  pc.fillStyle(COLORS.yellow)
+  pc.fillText('Snake', CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.4, CANVAS_WIDTH)
+
+  pc.font(`${CANVAS_WIDTH / 20}px monospace`)
+  pc.fillStyle(COLORS.green)
+  pc.fillText('press "space" to start', CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.6, CANVAS_WIDTH)
+}
+
+function gameOver (score) {
+  startSubscription.dispose()
+  updateSceneSubscription.dispose()
+  fadeOutThan(() => drawGameOver(score))
+}
+
+function fadeOutThan (afterFinishFadeOut) {
+  pc.context.globalAlpha = 0.2
+  let count = 8
+  const fadeOutTimer = setInterval(() => {
+    pc.clear(BG.menu)
+    count--
+
+    if (count === 0) {
+      clearInterval(fadeOutTimer)
+      pc.context.globalAlpha = 1
+      pc.clear(BG.menu)
+      afterFinishFadeOut()
+    }
+  }, 100)
+}
+
+function drawGameOver (score) {
+  pc.clear(BG.menu)
+
+  pc.font(`bold ${TITLE_FONT_SIZE}px monospace`)
+  pc.fillStyle(COLORS.yellow)
+  pc.fillText('Game Over', CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.4, CANVAS_WIDTH)
+
+  pc.font(`${SUBTITLE_FONT_SIZE}px monospace`)
+  pc.fillStyle(COLORS.green)
+  pc.fillText(`your score: ${score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.6, CANVAS_WIDTH)
 }
 
 function resetScene () {
   pc.clear(BG.gaming)
 }
 
-function draw ({ head, body, eggs, score }) {
+function draw ({ head, body, eggs, score, isCollision }) {
+  if (isCollision) return gameOver(score)
+
   resetScene()
   drawEggs(eggs)
   drawSnake({ head, body })
@@ -164,7 +236,7 @@ function draw ({ head, body, eggs, score }) {
 
 function drawEggs (eggs) {
   eggs.forEach((egg, _) => {
-    pc.fillStyle(COLORS.red)
+    pc.fillStyle(COLORS.yellow)
     pc.strokeStyle(COLORS.yellow)
     pc.fillRect(egg[0] * unit, egg[1] * unit, unit, unit)
     pc.strokeRect(egg[0] * unit, egg[1] * unit, unit, unit)
@@ -193,8 +265,9 @@ function wholeSnake ({ head, body }) {
 }
 
 function drawScore (score) {
-  pc.context.font = '14px sans-serif'
-  pc.context.fillStyle = COLORS.yellow
+  pc.font('14px sans-serif')
+  pc.fillStyle(COLORS.yellow)
+  pc.context.textAlign = 'left'
   pc.context.fillText(`$ ${score}`, 10, 20)
 }
 
