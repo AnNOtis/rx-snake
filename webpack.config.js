@@ -23,11 +23,11 @@ module.exports = {
         loader: 'babel',
       },
       {
-        test: /\.sass$/,
+        test: /\.css/,
         include: PATH.src,
         loader: ExtractTextPlugin.extract(
           'style-loader',
-          'css-loader?sourceMap!sass-loader?sourceMap'
+          'css-loader?sourceMap'
         ),
       },
     ],
