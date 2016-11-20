@@ -3,39 +3,48 @@ import { Observable, Scheduler } from 'rx'
 import 'rx-dom'
 import PaintCanvas from './paint_canvas'
 import COLORS from 'constants/colors'
-import { replaceItem, flow } from 'utils'
+import { randomInt, replaceItem, flow } from 'utils'
 
-const unit = 10
-const width = 40
-const height = 40
-const moveRate = 150
+const UNIT = 10
+const WIDTH = 40
+const HEIGHT = 40
+const MOVE_RATE = 150
 const SCORE_PER_EGG = 100
 
-const CANVAS_WIDTH = width * unit
-const CANVAS_HEIGHT = height * unit
+const CANVAS_WIDTH = WIDTH * UNIT
+const CANVAS_HEIGHT = HEIGHT * UNIT
 
 const TITLE_FONT_SIZE = CANVAS_WIDTH / 6
 const SUBTITLE_FONT_SIZE = CANVAS_WIDTH / 20
 
-const BG = {
-  menu: '#333',
-  gaming: '#333',
+const VALID_ARROW_KEYS = [ 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight' ]
+const ARROW_KEY_TO_OFFSET = {
+  ArrowUp: [ 0, -1 ],
+  ArrowDown: [ 0, 1 ],
+  ArrowLeft: [ -1, 0 ],
+  ArrowRight: [ 1, 0 ],
+}
+const REVERSED_ARROW_KEY = {
+  ArrowUp: 'ArrowDown',
+  ArrowDown: 'ArrowUp',
+  ArrowLeft: 'ArrowRight',
+  ArrowRight: 'ArrowLeft',
 }
 
 const INIT_GAME_WORLD =
   {
-    head: [ Math.floor(width / 2), Math.floor(height / 2) ],
+    head: [ Math.floor(WIDTH / 2), Math.floor(HEIGHT / 2) ],
     body: [
       [ 0, 1 ], [ 0, 1 ], [ 0, 1 ], [ 0, 1 ], [ 0, 1 ],
     ],
     eggs: [
-      [ rand(0, width), rand(0, height) ],
-      [ rand(0, width), rand(0, height) ],
-      [ rand(0, width), rand(0, height) ],
+      [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ],
+      [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ],
+      [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ],
     ],
     isEggBeEaten: false,
-    score: 0,
     isCollision: false,
+    score: 0,
   }
 
 const keyup$ = Observable.fromEvent(document, 'keyup')
@@ -45,29 +54,29 @@ const start$ = keyup$
   .filter((value) => value === 'Space')
 
 const pressArrowKey$ = keyup$
-  .filter(isValidArrowKeyCode)
+  .filter((code) => VALID_ARROW_KEYS.indexOf(code) !== -1)
 
 const manualMove$ = pressArrowKey$
   .skipUntil(start$)
-  .distinctUntilChanged(null, isReversedArrowKey)
+  .distinctUntilChanged(null, (keyOne, keyTwo) => REVERSED_ARROW_KEY[keyOne] === keyTwo)
 
-const intervalMove$ = Observable.interval(moveRate)
+const intervalMove$ = Observable.interval(MOVE_RATE)
   .withLatestFrom(manualMove$, (_, step) => step)
 
 const nextStep$ = manualMove$
   .merge(intervalMove$)
-  .map(mappingCodeToOffset)
+  .map((arrowKey) => ARROW_KEY_TO_OFFSET[arrowKey])
 
 const worldChange$ = nextStep$
-  .scan((world, step) => {
-    return flow([
+  .scan((world, step) => (
+    flow([
       moveSnake(step),
       generateEggIfBeEaten,
       growWhenSnakeEatEgg,
       calculateScore,
       checkCollision,
     ])(world)
-  }, INIT_GAME_WORLD)
+  ), INIT_GAME_WORLD)
   .startWith(INIT_GAME_WORLD)
 
 function moveSnake (step) {
@@ -127,7 +136,7 @@ function randomEggWithout (rejectPoints = []) {
   let result
   let isValidPosition = false
   while (!isValidPosition) {
-    result = [ rand(0, width), rand(0, height) ]
+    result = [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ]
     isValidPosition = rejectPoints.every((rejectPoint) => {
       return rejectPoint[0] !== result[0] && rejectPoint[1] !== result[1]
     })
@@ -140,10 +149,11 @@ function checkCollision (world) {
   const { head, body } = world
   const [ headX, headY ] = head
 
-  const isCollideWithWall = headX < 0 || headY < 0 || headX > width || headY > height
+  const isCollideWithWall = headX < 0 || headY < 0 || headX > WIDTH || headY > HEIGHT
   if (isCollideWithWall) return { ...world, isCollision: true }
 
-  const isSnakeBiteItSelf = wholeSnake({ head, body }).slice(1)
+  const isSnakeBiteItSelf = wholeSnake({ head, body })
+    .slice(1)
     .some(([ jointX, jointY ]) => jointX === headX && jointY === headY)
   if (isSnakeBiteItSelf) return { ...world, isCollision: true }
 
@@ -151,10 +161,7 @@ function checkCollision (world) {
 }
 
 const updateScene$ = Observable.generate(
-    0,
-    function (x) { return true },
-    function (x) { return x + 1 },
-    function (x) { return x },
+    0, (x) => true, (x) => x + 1, (x) => x,
     Scheduler.requestAnimationFrame
   )
   .skipUntil(start$)
@@ -163,7 +170,7 @@ const updateScene$ = Observable.generate(
     (_, world) => world
   )
 
-const pc = prepareCanvas()
+const pc = new PaintCanvas('game', { width: CANVAS_WIDTH, height: CANVAS_HEIGHT })
 startGame()
 
 function startGame () {
@@ -177,15 +184,8 @@ function startGame () {
   }
 }
 
-function prepareCanvas () {
-  return new PaintCanvas(
-    document.getElementById('game'),
-    { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }
-  )
-}
-
 function drawMenu () {
-  pc.clear(BG.menu)
+  pc.clear(COLORS.bg.menu)
   pc.font(`bold ${CANVAS_WIDTH / 5}px monospace`)
   pc.fillStyle(COLORS.yellow)
   pc.fillText('Snake', CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.4, CANVAS_WIDTH)
@@ -208,20 +208,20 @@ function fadeOutThan (afterFinishFadeOut) {
   pc.context.globalAlpha = 0.2
   let count = 8
   const fadeOutTimer = setInterval(() => {
-    pc.clear(BG.menu)
+    pc.clear(COLORS.bg.menu)
     count--
 
     if (count === 0) {
       clearInterval(fadeOutTimer)
       pc.context.globalAlpha = 1
-      pc.clear(BG.menu)
+      pc.clear(COLORS.bg.menu)
       afterFinishFadeOut()
     }
   }, 100)
 }
 
 function drawGameOver (score) {
-  pc.clear(BG.menu)
+  pc.clear(COLORS.bg.menu)
 
   pc.font(`bold ${TITLE_FONT_SIZE}px monospace`)
   pc.fillStyle(COLORS.yellow)
@@ -230,10 +230,6 @@ function drawGameOver (score) {
   pc.font(`${SUBTITLE_FONT_SIZE}px monospace`)
   pc.fillStyle(COLORS.green)
   pc.fillText(`your score: ${score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.6, CANVAS_WIDTH)
-}
-
-function resetScene () {
-  pc.clear(BG.gaming)
 }
 
 function draw ({ head, body, eggs, score, isCollision }) {
@@ -245,12 +241,16 @@ function draw ({ head, body, eggs, score, isCollision }) {
   drawScore(score)
 }
 
+function resetScene () {
+  pc.clear(COLORS.bg.gaming)
+}
+
 function drawEggs (eggs) {
   eggs.forEach((egg, _) => {
     pc.fillStyle(COLORS.yellow)
     pc.strokeStyle(COLORS.yellow)
-    pc.fillRect(egg[0] * unit, egg[1] * unit, unit, unit)
-    pc.strokeRect(egg[0] * unit, egg[1] * unit, unit, unit)
+    pc.fillRect(egg[0] * UNIT, egg[1] * UNIT, UNIT, UNIT)
+    pc.strokeRect(egg[0] * UNIT, egg[1] * UNIT, UNIT, UNIT)
   })
 }
 
@@ -284,35 +284,5 @@ function drawScore (score) {
 
 function drawSnakeJoint (x, y) {
   pc.strokeStyle('green')
-  pc.strokeRect(x * unit, y * unit, unit, unit)
-}
-
-function mappingCodeToOffset (code) {
-  const mapping = {
-    'ArrowUp': [ 0, -1 ],
-    'ArrowDown': [ 0, 1 ],
-    'ArrowLeft': [ -1, 0 ],
-    'ArrowRight': [ 1, 0 ],
-  }
-
-  return mapping[code]
-}
-
-function isValidArrowKeyCode (code) {
-  return [ 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight' ].indexOf(code) !== -1
-}
-
-function isReversedArrowKey (keyOne, KeyTwo) {
-  const reversedKeyMapping = {
-    ArrowUp: 'ArrowDown',
-    ArrowDown: 'ArrowUp',
-    ArrowLeft: 'ArrowRight',
-    ArrowRight: 'ArrowLeft',
-  }
-
-  return reversedKeyMapping[keyOne] === KeyTwo
-}
-
-function rand (min, max) {
-  return Math.floor(Math.random() * (max - min)) + min
+  pc.strokeRect(x * UNIT, y * UNIT, UNIT, UNIT)
 }
