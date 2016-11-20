@@ -70,30 +70,39 @@
 	
 	function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
 	
-	var unit = 10;
-	var width = 40;
-	var height = 40;
-	var moveRate = 150;
+	var UNIT = 10;
+	var WIDTH = 40;
+	var HEIGHT = 40;
+	var MOVE_RATE = 150;
 	var SCORE_PER_EGG = 100;
 	
-	var CANVAS_WIDTH = width * unit;
-	var CANVAS_HEIGHT = height * unit;
+	var CANVAS_WIDTH = WIDTH * UNIT;
+	var CANVAS_HEIGHT = HEIGHT * UNIT;
 	
 	var TITLE_FONT_SIZE = CANVAS_WIDTH / 6;
 	var SUBTITLE_FONT_SIZE = CANVAS_WIDTH / 20;
 	
-	var BG = {
-	  menu: '#333',
-	  gaming: '#333'
+	var VALID_ARROW_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+	var ARROW_KEY_TO_OFFSET = {
+	  ArrowUp: [0, -1],
+	  ArrowDown: [0, 1],
+	  ArrowLeft: [-1, 0],
+	  ArrowRight: [1, 0]
+	};
+	var REVERSED_ARROW_KEY = {
+	  ArrowUp: 'ArrowDown',
+	  ArrowDown: 'ArrowUp',
+	  ArrowLeft: 'ArrowRight',
+	  ArrowRight: 'ArrowLeft'
 	};
 	
 	var INIT_GAME_WORLD = {
-	  head: [Math.floor(width / 2), Math.floor(height / 2)],
+	  head: [Math.floor(WIDTH / 2), Math.floor(HEIGHT / 2)],
 	  body: [[0, 1], [0, 1], [0, 1], [0, 1], [0, 1]],
-	  eggs: [[rand(0, width), rand(0, height)], [rand(0, width), rand(0, height)], [rand(0, width), rand(0, height)]],
+	  eggs: [[(0, _utils.randomInt)(0, WIDTH), (0, _utils.randomInt)(0, HEIGHT)], [(0, _utils.randomInt)(0, WIDTH), (0, _utils.randomInt)(0, HEIGHT)], [(0, _utils.randomInt)(0, WIDTH), (0, _utils.randomInt)(0, HEIGHT)]],
 	  isEggBeEaten: false,
-	  score: 0,
-	  isCollision: false
+	  isCollision: false,
+	  score: 0
 	};
 	
 	var keyup$ = _rx.Observable.fromEvent(document, 'keyup').pluck('code');
@@ -102,15 +111,21 @@
 	  return value === 'Space';
 	});
 	
-	var pressArrowKey$ = keyup$.filter(isValidArrowKeyCode);
+	var pressArrowKey$ = keyup$.filter(function (code) {
+	  return VALID_ARROW_KEYS.indexOf(code) !== -1;
+	});
 	
-	var manualMove$ = pressArrowKey$.skipUntil(start$).distinctUntilChanged(null, isReversedArrowKey);
+	var manualMove$ = pressArrowKey$.skipUntil(start$).distinctUntilChanged(null, function (keyOne, keyTwo) {
+	  return REVERSED_ARROW_KEY[keyOne] === keyTwo;
+	});
 	
-	var intervalMove$ = _rx.Observable.interval(moveRate).withLatestFrom(manualMove$, function (_, step) {
+	var intervalMove$ = _rx.Observable.interval(MOVE_RATE).withLatestFrom(manualMove$, function (_, step) {
 	  return step;
 	});
 	
-	var nextStep$ = manualMove$.merge(intervalMove$).map(mappingCodeToOffset);
+	var nextStep$ = manualMove$.merge(intervalMove$).map(function (arrowKey) {
+	  return ARROW_KEY_TO_OFFSET[arrowKey];
+	});
 	
 	var worldChange$ = nextStep$.scan(function (world, step) {
 	  return (0, _utils.flow)([moveSnake(step), generateEggIfBeEaten, growWhenSnakeEatEgg, calculateScore, checkCollision])(world);
@@ -180,7 +195,7 @@
 	  var result = void 0;
 	  var isValidPosition = false;
 	  while (!isValidPosition) {
-	    result = [rand(0, width), rand(0, height)];
+	    result = [(0, _utils.randomInt)(0, WIDTH), (0, _utils.randomInt)(0, HEIGHT)];
 	    isValidPosition = rejectPoints.every(function (rejectPoint) {
 	      return rejectPoint[0] !== result[0] && rejectPoint[1] !== result[1];
 	    });
@@ -197,7 +212,7 @@
 	      headX = _head[0],
 	      headY = _head[1];
 	
-	  var isCollideWithWall = headX < 0 || headY < 0 || headX > width || headY > height;
+	  var isCollideWithWall = headX < 0 || headY < 0 || headX >= WIDTH || headY >= HEIGHT;
 	  if (isCollideWithWall) return _extends({}, world, { isCollision: true });
 	
 	  var isSnakeBiteItSelf = wholeSnake({ head: head, body: body }).slice(1).some(function (_ref) {
@@ -222,18 +237,22 @@
 	  return world;
 	});
 	
-	var pc = prepareCanvas();
-	drawMenu();
+	var pc = new _paint_canvas2.default('game', { width: CANVAS_WIDTH, height: CANVAS_HEIGHT });
+	startGame();
 	
-	var startSubscription = start$.subscribe(resetScene);
-	var updateSceneSubscription = updateScene$.subscribe(draw);
+	function startGame() {
+	  drawMenu();
+	  var startSubscription = start$.subscribe(resetScene);
+	  var updateSceneSubscription = updateScene$.subscribe(draw);
 	
-	function prepareCanvas() {
-	  return new _paint_canvas2.default(document.getElementById('game'), { width: CANVAS_WIDTH, height: CANVAS_HEIGHT });
+	  window.disposeGame = function () {
+	    startSubscription.dispose();
+	    updateSceneSubscription.dispose();
+	  };
 	}
 	
 	function drawMenu() {
-	  pc.clear(BG.menu);
+	  pc.clear(_colors2.default.bg.menu);
 	  pc.font('bold ' + CANVAS_WIDTH / 5 + 'px monospace');
 	  pc.fillStyle(_colors2.default.yellow);
 	  pc.fillText('Snake', CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.4, CANVAS_WIDTH);
@@ -244,10 +263,14 @@
 	}
 	
 	function gameOver(score) {
-	  startSubscription.dispose();
-	  updateSceneSubscription.dispose();
+	  if (window.disposeGame) window.disposeGame();
+	  if (score > getHighestScore()) {
+	    setHighestScore(score);
+	  }
+	
 	  fadeOutThan(function () {
-	    return drawGameOver(score);
+	    drawGameOver(score);
+	    start$.first().subscribe(startGame);
 	  });
 	}
 	
@@ -255,20 +278,20 @@
 	  pc.context.globalAlpha = 0.2;
 	  var count = 8;
 	  var fadeOutTimer = setInterval(function () {
-	    pc.clear(BG.menu);
+	    pc.clear(_colors2.default.bg.menu);
 	    count--;
 	
 	    if (count === 0) {
 	      clearInterval(fadeOutTimer);
 	      pc.context.globalAlpha = 1;
-	      pc.clear(BG.menu);
+	      pc.clear(_colors2.default.bg.menu);
 	      afterFinishFadeOut();
 	    }
 	  }, 100);
 	}
 	
 	function drawGameOver(score) {
-	  pc.clear(BG.menu);
+	  pc.clear(_colors2.default.bg.menu);
 	
 	  pc.font('bold ' + TITLE_FONT_SIZE + 'px monospace');
 	  pc.fillStyle(_colors2.default.yellow);
@@ -277,10 +300,7 @@
 	  pc.font(SUBTITLE_FONT_SIZE + 'px monospace');
 	  pc.fillStyle(_colors2.default.green);
 	  pc.fillText('your score: ' + score, CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.6, CANVAS_WIDTH);
-	}
-	
-	function resetScene() {
-	  pc.clear(BG.gaming);
+	  pc.fillText('highest score: ' + getHighestScore(), CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.7, CANVAS_WIDTH);
 	}
 	
 	function draw(_ref3) {
@@ -298,12 +318,16 @@
 	  drawScore(score);
 	}
 	
+	function resetScene() {
+	  pc.clear(_colors2.default.bg.gaming);
+	}
+	
 	function drawEggs(eggs) {
 	  eggs.forEach(function (egg, _) {
 	    pc.fillStyle(_colors2.default.yellow);
 	    pc.strokeStyle(_colors2.default.yellow);
-	    pc.fillRect(egg[0] * unit, egg[1] * unit, unit, unit);
-	    pc.strokeRect(egg[0] * unit, egg[1] * unit, unit, unit);
+	    pc.fillRect(egg[0] * UNIT, egg[1] * UNIT, UNIT, UNIT);
+	    pc.strokeRect(egg[0] * UNIT, egg[1] * UNIT, UNIT, UNIT);
 	  });
 	}
 	
@@ -329,43 +353,26 @@
 	function drawScore(score) {
 	  pc.font('14px sans-serif');
 	  pc.fillStyle(_colors2.default.yellow);
-	  pc.context.textAlign = 'left';
-	  pc.context.fillText('$ ' + score, 10, 20);
+	  pc.context.textAlign = 'right';
+	  pc.context.fillText('$ ' + score, CANVAS_WIDTH - 10, 20);
 	}
 	
 	function drawSnakeJoint(x, y) {
 	  pc.strokeStyle('green');
-	  pc.strokeRect(x * unit, y * unit, unit, unit);
+	  pc.strokeRect(x * UNIT, y * UNIT, UNIT, UNIT);
 	}
 	
-	function mappingCodeToOffset(code) {
-	  var mapping = {
-	    'ArrowUp': [0, -1],
-	    'ArrowDown': [0, 1],
-	    'ArrowLeft': [-1, 0],
-	    'ArrowRight': [1, 0]
-	  };
-	
-	  return mapping[code];
+	function getHighestScore() {
+	  try {
+	    return parseInt(localStorage.getItem('highestScore'), 10) || 0;
+	  } catch (e) {
+	    return 0;
+	  }
 	}
 	
-	function isValidArrowKeyCode(code) {
-	  return ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].indexOf(code) !== -1;
-	}
-	
-	function isReversedArrowKey(keyOne, KeyTwo) {
-	  var reversedKeyMapping = {
-	    ArrowUp: 'ArrowDown',
-	    ArrowDown: 'ArrowUp',
-	    ArrowLeft: 'ArrowRight',
-	    ArrowRight: 'ArrowLeft'
-	  };
-	
-	  return reversedKeyMapping[keyOne] === KeyTwo;
-	}
-	
-	function rand(min, max) {
-	  return Math.floor(Math.random() * (max - min)) + min;
+	function setHighestScore(score) {
+	  if (!score) return;
+	  localStorage.setItem('highestScore', score);
 	}
 
 /***/ },
@@ -14384,11 +14391,12 @@
 	
 	// manipulate canvas using center mode
 	var PaintCanvas = function () {
-	  function PaintCanvas(dom) {
+	  function PaintCanvas(domID) {
 	    var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
 	
 	    _classCallCheck(this, PaintCanvas);
 	
+	    var dom = document.getElementById('game');
 	    var _options$width = options.width,
 	        width = _options$width === undefined ? dom.clientWidth : _options$width,
 	        _options$height = options.height,
@@ -14404,6 +14412,7 @@
 	    var ctx = canvas.getContext('2d');
 	
 	    this.context = ctx;
+	    this.elem = dom;
 	  }
 	
 	  _createClass(PaintCanvas, [{
@@ -14488,7 +14497,12 @@
 	exports.default = {
 	  yellow: '#fecd30',
 	  red: '#fa5562',
-	  green: 'green'
+	  green: 'green',
+	
+	  bg: {
+	    menu: '#333',
+	    gaming: '#333'
+	  }
 	};
 
 /***/ },
@@ -14502,6 +14516,7 @@
 	});
 	exports.replaceItem = replaceItem;
 	exports.flow = flow;
+	exports.randomInt = randomInt;
 	
 	function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
 	
@@ -14529,6 +14544,10 @@
 	
 	    return result;
 	  };
+	}
+	
+	function randomInt(min, max) {
+	  return Math.floor(Math.random() * (max - min)) + min;
 	}
 
 /***/ }
