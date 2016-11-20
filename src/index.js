@@ -1,4 +1,4 @@
-import './index.sass'
+import './index.css'
 import { Observable, Scheduler } from 'rx'
 import 'rx-dom'
 import PaintCanvas from './paint_canvas'
@@ -149,7 +149,7 @@ function checkCollision (world) {
   const { head, body } = world
   const [ headX, headY ] = head
 
-  const isCollideWithWall = headX < 0 || headY < 0 || headX > WIDTH || headY > HEIGHT
+  const isCollideWithWall = headX < 0 || headY < 0 || headX >= WIDTH || headY >= HEIGHT
   if (isCollideWithWall) return { ...world, isCollision: true }
 
   const isSnakeBiteItSelf = wholeSnake({ head, body })
@@ -197,6 +197,9 @@ function drawMenu () {
 
 function gameOver (score) {
   if (window.disposeGame) window.disposeGame()
+  if (score > getHighestScore()) {
+    setHighestScore(score)
+  }
 
   fadeOutThan(() => {
     drawGameOver(score)
@@ -230,6 +233,7 @@ function drawGameOver (score) {
   pc.font(`${SUBTITLE_FONT_SIZE}px monospace`)
   pc.fillStyle(COLORS.green)
   pc.fillText(`your score: ${score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.6, CANVAS_WIDTH)
+  pc.fillText(`highest score: ${getHighestScore()}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.7, CANVAS_WIDTH)
 }
 
 function draw ({ head, body, eggs, score, isCollision }) {
@@ -278,11 +282,24 @@ function wholeSnake ({ head, body }) {
 function drawScore (score) {
   pc.font('14px sans-serif')
   pc.fillStyle(COLORS.yellow)
-  pc.context.textAlign = 'left'
-  pc.context.fillText(`$ ${score}`, 10, 20)
+  pc.context.textAlign = 'right'
+  pc.context.fillText(`$ ${score}`, CANVAS_WIDTH - 10, 20)
 }
 
 function drawSnakeJoint (x, y) {
   pc.strokeStyle('green')
   pc.strokeRect(x * UNIT, y * UNIT, UNIT, UNIT)
+}
+
+function getHighestScore () {
+  try {
+    return parseInt(localStorage.getItem('highestScore'), 10) || 0
+  } catch (e) {
+    return 0
+  }
+}
+
+function setHighestScore (score) {
+  if (!score) return
+  localStorage.setItem('highestScore', score)
 }
