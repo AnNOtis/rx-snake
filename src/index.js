@@ -164,10 +164,18 @@ const updateScene$ = Observable.generate(
   )
 
 const pc = prepareCanvas()
-drawMenu()
+startGame()
 
-const startSubscription = start$.subscribe(resetScene)
-const updateSceneSubscription = updateScene$.subscribe(draw)
+function startGame () {
+  drawMenu()
+  const startSubscription = start$.subscribe(resetScene)
+  const updateSceneSubscription = updateScene$.subscribe(draw)
+
+  window.disposeGame = () => {
+    startSubscription.dispose()
+    updateSceneSubscription.dispose()
+  }
+}
 
 function prepareCanvas () {
   return new PaintCanvas(
@@ -188,9 +196,12 @@ function drawMenu () {
 }
 
 function gameOver (score) {
-  startSubscription.dispose()
-  updateSceneSubscription.dispose()
-  fadeOutThan(() => drawGameOver(score))
+  if (window.disposeGame) window.disposeGame()
+
+  fadeOutThan(() => {
+    drawGameOver(score)
+    start$.first().subscribe(startGame)
+  })
 }
 
 function fadeOutThan (afterFinishFadeOut) {
