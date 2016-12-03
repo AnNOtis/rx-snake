@@ -4,11 +4,12 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "start": "webpack-dev-server --hot --inline --content-base src/",
+    "start": "webpack-dev-server --hot --inline --content-base src/ --host 0.0.0.0",
     "build": "webpack",
     "test": "mocha --require babel-register"
   },
   "dependencies": {
+    "ismobilejs": "^0.4.0",
     "rx": "^4.1.0",
     "rx-dom": "^7.0.3"
   },

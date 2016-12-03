@@ -1,4 +1,7 @@
 import './index.css'
+import './github_corner.css'
+import './is_mobile'
+
 import { Observable, Scheduler } from 'rx'
 import 'rx-dom'
 import PaintCanvas from './paint_canvas'
