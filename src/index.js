@@ -2,7 +2,7 @@ import './index.css'
 import './github_corner.css'
 import './is_mobile'
 
-import { Observable, Scheduler } from 'rx'
+import Rx, { Observable, Scheduler } from 'rx'
 import 'rx-dom'
 import PaintCanvas from './paint_canvas'
 import COLORS from 'constants/colors'
@@ -11,8 +11,9 @@ import { randomInt, replaceItem, flow } from 'utils'
 const UNIT = 10
 const WIDTH = 40
 const HEIGHT = 40
-const MOVE_RATE = 150
+const MOVE_RATE = 300
 const SCORE_PER_EGG = 100
+const FPS = 24
 
 const CANVAS_WIDTH = WIDTH * UNIT
 const CANVAS_HEIGHT = HEIGHT * UNIT
@@ -163,8 +164,8 @@ function checkCollision (world) {
   return world
 }
 
-const updateScene$ = Observable.generate(
-    0, (x) => true, (x) => x + 1, (x) => x,
+const updateScene$ = Observable.interval(
+    1000 / FPS,
     Scheduler.requestAnimationFrame
   )
   .skipUntil(start$)
