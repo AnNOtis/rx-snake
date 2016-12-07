@@ -71,70 +71,62 @@ const nextStep$ = manualMove$
   .merge(intervalMove$)
   .map((arrowKey) => ARROW_KEY_TO_OFFSET[arrowKey])
 
-const worldChange$ = nextStep$
-  .scan((world, step) => (
-    flow([
-      moveSnake(step),
-      generateEggIfBeEaten,
-      growWhenSnakeEatEgg,
-      calculateScore,
-      checkCollision,
-    ])(world)
-  ), INIT_GAME_WORLD)
-  .startWith(INIT_GAME_WORLD)
+const snakeSubject = new Rx.BehaviorSubject({
+  head: [ Math.floor(WIDTH / 2), Math.floor(HEIGHT / 2) ],
+  body: [
+    [ 0, 1 ], [ 0, 1 ], [ 0, 1 ], [ 0, 1 ], [ 0, 1 ],
+  ],
+  tail: [ 0, 1 ],
+})
 
-function moveSnake (step) {
-  return (world) => {
-    const { head, body } = world
+const eggsSubject = new Rx.BehaviorSubject([
+  [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ],
+  [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ],
+  [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ],
+])
 
-    return {
-      ...world,
+const eggBeEaten$ = snakeSubject.withLatestFrom(eggsSubject)
+  .map(([ snake, eggs ]) => {
+    const { head } = snake
+    let eggBeEaten = null
+    eggs.forEach((egg, index) => {
+      if (egg[0] === head[0] && egg[1] === head[1]) {
+        eggBeEaten = index
+      }
+    })
+
+    return eggBeEaten
+  })
+  .filter((eggBeEaten) => eggBeEaten !== null)
+
+const moveSnake$ = nextStep$.withLatestFrom(snakeSubject)
+  .map(([ step, snake ]) => {
+    const { head, body } = snake
+
+    const nextSnake = {
       head: [ head[0] + step[0], head[1] + step[1] ],
       body: [ [ -step[0], -step[1] ], ...body.slice(0, -1) ],
       tail: [ ...body.slice(body.length - 1) ],
     }
-  }
-}
 
-function generateEggIfBeEaten (world) {
-  const { head, eggs } = world
+    snakeSubject.onNext(nextSnake)
 
-  let isEggBeEaten = false
-  let newEggs = eggs
-
-  eggs.forEach((egg, index) => {
-    if (egg[0] === head[0] && egg[1] === head[1]) {
-      newEggs = replaceItem(eggs, index, randomEggWithout([ ...eggs, ...wholeSnake(world) ]))
-      isEggBeEaten = true
-    }
+    return nextSnake
   })
 
-  return {
-    ...world,
-    eggs: newEggs,
-    isEggBeEaten,
-  }
-}
+const regenerateEgg$ = eggBeEaten$
+  .withLatestFrom(eggsSubject, snakeSubject)
+  .map(([ eggBeEaten, eggs, snake ]) => {
+    const nextEggs = replaceItem(
+      eggs,
+      eggBeEaten,
+      randomEggWithout([ ...eggs, ...wholeSnake(snake) ])
+    )
 
-function growWhenSnakeEatEgg (world) {
-  const { body, tail, isEggBeEaten } = world
+    eggsSubject.onNext(nextEggs)
 
-  const newBody = isEggBeEaten ? [ ...body, tail ] : body
-  return {
-    ...world,
-    body: newBody,
-  }
-}
-
-function calculateScore (world) {
-  const { score, isEggBeEaten } = world
-
-  return {
-    ...world,
-    isEggBeEaten: false,
-    score: score + (isEggBeEaten ? SCORE_PER_EGG : 0),
-  }
-}
+    return nextEggs
+  })
 
 function randomEggWithout (rejectPoints = []) {
   let result
@@ -149,20 +141,32 @@ function randomEggWithout (rejectPoints = []) {
   return result
 }
 
-function checkCollision (world) {
-  const { head, body } = world
-  const [ headX, headY ] = head
+const growSnake$ = eggBeEaten$
+  .withLatestFrom(snakeSubject)
+  .map(([ _, snake ]) => {
+    const { body, tail } = snake
 
-  const isCollideWithWall = headX < 0 || headY < 0 || headX >= WIDTH || headY >= HEIGHT
-  if (isCollideWithWall) return { ...world, isCollision: true }
+    const nextSnake = {
+      ...snake,
+      body: [ ...body, tail ],
+    }
 
-  const isSnakeBiteItSelf = wholeSnake({ head, body })
-    .slice(1)
-    .some(([ jointX, jointY ]) => jointX === headX && jointY === headY)
-  if (isSnakeBiteItSelf) return { ...world, isCollision: true }
+    snakeSubject.onNext(nextSnake)
 
-  return world
-}
+    return nextSnake
+  })
+
+const worldPower$ = Observable.create(() => {
+  const moveSnakeSub = moveSnake$.subscribe()
+  const regenerateEggSub = regenerateEgg$.subscribe()
+  const growSnakeSub = growSnake$.subscribe(() => { console.log('growSnake$') })
+
+  return () => {
+    moveSnakeSub.dispose()
+    regenerateEggSub.dispose()
+    growSnakeSub.dispose()
+  }
+})
 
 const updateScene$ = Observable.interval(
     1000 / FPS,
@@ -170,8 +174,8 @@ const updateScene$ = Observable.interval(
   )
   .skipUntil(start$)
   .withLatestFrom(
-    worldChange$,
-    (_, world) => world
+    snakeSubject, eggsSubject,
+    (_, snake, eggs) => ({ snake, eggs })
   )
 
 const pc = new PaintCanvas('game', { width: CANVAS_WIDTH, height: CANVAS_HEIGHT })
@@ -179,12 +183,14 @@ startGame()
 
 function startGame () {
   drawMenu()
-  const startSubscription = start$.subscribe(resetScene)
-  const updateSceneSubscription = updateScene$.subscribe(draw)
+  const startSub = start$.subscribe(resetScene)
+  const worldPowerSub = worldPower$.subscribe()
+  const updateSceneSub = updateScene$.subscribe(draw)
 
   window.disposeGame = () => {
-    startSubscription.dispose()
-    updateSceneSubscription.dispose()
+    startSub.dispose()
+    worldPowerSub.dispose()
+    updateSceneSub.dispose()
   }
 }
 
@@ -240,13 +246,12 @@ function drawGameOver (score) {
   pc.fillText(`highest score: ${getHighestScore()}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.7, CANVAS_WIDTH)
 }
 
-function draw ({ head, body, eggs, score, isCollision }) {
+function draw ({ snake, eggs, score, isCollision }) {
   if (isCollision) return gameOver(score)
-
   resetScene()
   drawEggs(eggs)
-  drawSnake({ head, body })
-  drawScore(score)
+  drawSnake(snake)
+  // drawScore(score)
 }
 
 function resetScene () {
