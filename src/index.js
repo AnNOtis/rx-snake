@@ -134,6 +134,23 @@ const scoreChanges = eggBeEaten$
   .scan((totalScore) => totalScore + SCORE_PER_EGG, 0)
   .startWith(0)
 
+const gameOver$ = snakeSubject.filter((snake) => {
+  const { head, body } = snake
+  const [ headX, headY ] = head
+
+  const isCollideWithWall = headX < 0 || headY < 0 || headX >= WIDTH || headY >= HEIGHT
+  if (isCollideWithWall) return true
+
+  const isSnakeBiteItSelf = wholeSnake({ head, body })
+    .slice(1)
+    .some(([ jointX, jointY ]) => jointX === headX && jointY === headY)
+  if (isSnakeBiteItSelf) return true
+
+  return false
+})
+.withLatestFrom(scoreChanges)
+.map(([ _, score ]) => score)
+
 const worldPower$ = Observable.merge(regenerateEgg$, moveSnake$)
 
 const updateScene$ = Observable.interval(
@@ -156,11 +173,13 @@ function startGame () {
   const startSub = start$.subscribe(resetScene)
   const worldPowerSub = worldPower$.subscribe()
   const updateSceneSub = updateScene$.subscribe(draw)
+  const gameOverSub = gameOver$.subscribe(gameOver)
 
   window.disposeGame = () => {
     startSub.dispose()
     worldPowerSub.dispose()
     updateSceneSub.dispose()
+    gameOverSub.dispose()
   }
 }
 
