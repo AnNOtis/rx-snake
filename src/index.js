@@ -6,7 +6,7 @@ import Rx, { Observable, Scheduler } from 'rx'
 import 'rx-dom'
 import PaintCanvas from './paint_canvas'
 import COLORS from 'constants/colors'
-import { randomInt, replaceItem, flow } from 'utils'
+import { randomInt, replaceItem } from 'utils'
 
 const UNIT = 10
 const WIDTH = 40
@@ -35,22 +35,6 @@ const REVERSED_ARROW_KEY = {
   ArrowRight: 'ArrowLeft',
 }
 
-const INIT_GAME_WORLD =
-  {
-    head: [ Math.floor(WIDTH / 2), Math.floor(HEIGHT / 2) ],
-    body: [
-      [ 0, 1 ], [ 0, 1 ], [ 0, 1 ], [ 0, 1 ], [ 0, 1 ],
-    ],
-    eggs: [
-      [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ],
-      [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ],
-      [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ],
-    ],
-    isEggBeEaten: false,
-    isCollision: false,
-    score: 0,
-  }
-
 const keyup$ = Observable.fromEvent(document, 'keyup')
   .pluck('code')
 
@@ -76,7 +60,6 @@ const snakeSubject = new Rx.BehaviorSubject({
   body: [
     [ 0, 1 ], [ 0, 1 ], [ 0, 1 ], [ 0, 1 ], [ 0, 1 ],
   ],
-  tail: [ 0, 1 ],
 })
 
 const eggsSubject = new Rx.BehaviorSubject([
@@ -85,34 +68,40 @@ const eggsSubject = new Rx.BehaviorSubject([
   [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ],
 ])
 
-const eggBeEaten$ = snakeSubject.withLatestFrom(eggsSubject)
-  .map(([ snake, eggs ]) => {
-    const { head } = snake
-    let eggBeEaten = null
-    eggs.forEach((egg, index) => {
-      if (egg[0] === head[0] && egg[1] === head[1]) {
-        eggBeEaten = index
-      }
-    })
+const eggBeEatenSubject = new Rx.BehaviorSubject(null)
 
-    return eggBeEaten
-  })
+const eggBeEaten$ = eggBeEatenSubject
   .filter((eggBeEaten) => eggBeEaten !== null)
 
-const moveSnake$ = nextStep$.withLatestFrom(snakeSubject)
-  .map(([ step, snake ]) => {
+const moveSnake$ = nextStep$
+  .withLatestFrom(snakeSubject, eggsSubject)
+  .map(([ step, snake, eggs ]) => {
     const { head, body } = snake
 
+    const eatenEgg = getEatenEgg(head, eggs)
+
+    const nextBody = eatenEgg ? body : body.slice(0, -1)
     const nextSnake = {
       head: [ head[0] + step[0], head[1] + step[1] ],
-      body: [ [ -step[0], -step[1] ], ...body.slice(0, -1) ],
-      tail: [ ...body.slice(body.length - 1) ],
+      body: [ [ -step[0], -step[1] ], ...nextBody ],
     }
 
+    eggBeEatenSubject.onNext(eatenEgg)
     snakeSubject.onNext(nextSnake)
 
     return nextSnake
   })
+
+function getEatenEgg (head, eggs) {
+  let eatenEgg = null
+  eggs.forEach((egg, index) => {
+    if (egg[0] === head[0] && egg[1] === head[1]) {
+      eatenEgg = index
+    }
+  })
+
+  return eatenEgg
+}
 
 const regenerateEgg$ = eggBeEaten$
   .withLatestFrom(eggsSubject, snakeSubject)
@@ -141,32 +130,11 @@ function randomEggWithout (rejectPoints = []) {
   return result
 }
 
-const growSnake$ = eggBeEaten$
-  .withLatestFrom(snakeSubject)
-  .map(([ _, snake ]) => {
-    const { body, tail } = snake
+const scoreChanges = eggBeEaten$
+  .scan((totalScore) => totalScore + SCORE_PER_EGG, 0)
+  .startWith(0)
 
-    const nextSnake = {
-      ...snake,
-      body: [ ...body, tail ],
-    }
-
-    snakeSubject.onNext(nextSnake)
-
-    return nextSnake
-  })
-
-const worldPower$ = Observable.create(() => {
-  const moveSnakeSub = moveSnake$.subscribe()
-  const regenerateEggSub = regenerateEgg$.subscribe()
-  const growSnakeSub = growSnake$.subscribe(() => { console.log('growSnake$') })
-
-  return () => {
-    moveSnakeSub.dispose()
-    regenerateEggSub.dispose()
-    growSnakeSub.dispose()
-  }
-})
+const worldPower$ = Observable.merge(regenerateEgg$, moveSnake$)
 
 const updateScene$ = Observable.interval(
     1000 / FPS,
@@ -174,8 +142,10 @@ const updateScene$ = Observable.interval(
   )
   .skipUntil(start$)
   .withLatestFrom(
-    snakeSubject, eggsSubject,
-    (_, snake, eggs) => ({ snake, eggs })
+    [ snakeSubject, eggsSubject, scoreChanges ],
+    (_, snake, eggs, score) => {
+      return { snake, eggs, score }
+    }
   )
 
 const pc = new PaintCanvas('game', { width: CANVAS_WIDTH, height: CANVAS_HEIGHT })
@@ -251,7 +221,7 @@ function draw ({ snake, eggs, score, isCollision }) {
   resetScene()
   drawEggs(eggs)
   drawSnake(snake)
-  // drawScore(score)
+  drawScore(score)
 }
 
 function resetScene () {
