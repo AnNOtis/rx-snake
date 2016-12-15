@@ -12,13 +12,15 @@ Made just for fun. [Play it here!](https://annotis.github.io/rx-snake)
 ## Quick Start
 
 1. Clone & Install
-```sh
-git clone git@github.com:AnNOtis/rx-snake.git
-cd rx-snake
-yarn install
-```
+
+  ```sh
+  git clone git@github.com:AnNOtis/rx-snake.git
+  cd rx-snake
+  yarn install
+  ```
 
 2. Start server & open http://0.0.0.0:8080/
+
   ```sh
   yarn start
   ```
