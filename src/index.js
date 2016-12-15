@@ -55,20 +55,34 @@ const nextStep$ = manualMove$
   .merge(intervalMove$)
   .map((arrowKey) => ARROW_KEY_TO_OFFSET[arrowKey])
 
-const snakeSubject = new Rx.BehaviorSubject({
+const INIT_SNAKE = {
   head: [ Math.floor(WIDTH / 2), Math.floor(HEIGHT / 2) ],
   body: [
     [ 0, 1 ], [ 0, 1 ], [ 0, 1 ], [ 0, 1 ], [ 0, 1 ],
   ],
-})
+}
+const snakeSubject = new Rx.BehaviorSubject(INIT_SNAKE)
+snakeSubject.init = function () {
+  snakeSubject.onNext(INIT_SNAKE)
+}
 
-const eggsSubject = new Rx.BehaviorSubject([
-  [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ],
-  [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ],
-  [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ],
-])
+const eggsSubject = new Rx.BehaviorSubject(randomEggs())
+eggsSubject.init = function () {
+  eggsSubject.onNext(randomEggs())
+}
+
+function randomEggs () {
+  return [
+    [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ],
+    [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ],
+    [ randomInt(0, WIDTH), randomInt(0, HEIGHT) ],
+  ]
+}
 
 const eggBeEatenSubject = new Rx.BehaviorSubject(null)
+eggBeEatenSubject.init = function () {
+  eggBeEatenSubject.onNext(null)
+}
 
 const eggBeEaten$ = eggBeEatenSubject
   .filter((eggBeEaten) => eggBeEaten !== null)
@@ -169,13 +183,19 @@ const pc = new PaintCanvas('game', { width: CANVAS_WIDTH, height: CANVAS_HEIGHT 
 startGame()
 
 function startGame () {
-  drawMenu()
+  if (!startGame.isEverStart) {
+    drawMenu()
+    startGame.isEverStart = true
+  }
   const startSub = start$.subscribe(resetScene)
   const worldPowerSub = worldPower$.subscribe()
   const updateSceneSub = updateScene$.subscribe(draw)
   const gameOverSub = gameOver$.subscribe(gameOver)
 
   window.disposeGame = () => {
+    snakeSubject.init()
+    eggsSubject.init()
+    eggBeEatenSubject.init()
     startSub.dispose()
     worldPowerSub.dispose()
     updateSceneSub.dispose()
