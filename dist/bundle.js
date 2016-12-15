@@ -48,23 +48,27 @@
 	
 	var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 	
-	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-	
 	__webpack_require__(1);
 	
-	var _rx = __webpack_require__(5);
+	__webpack_require__(5);
 	
-	__webpack_require__(8);
+	__webpack_require__(7);
 	
-	var _paint_canvas = __webpack_require__(9);
+	var _rx = __webpack_require__(9);
+	
+	var _rx2 = _interopRequireDefault(_rx);
+	
+	__webpack_require__(12);
+	
+	var _paint_canvas = __webpack_require__(13);
 	
 	var _paint_canvas2 = _interopRequireDefault(_paint_canvas);
 	
-	var _colors = __webpack_require__(10);
+	var _game_drawer = __webpack_require__(14);
 	
-	var _colors2 = _interopRequireDefault(_colors);
+	var _game_drawer2 = _interopRequireDefault(_game_drawer);
 	
-	var _utils = __webpack_require__(11);
+	var _utils = __webpack_require__(16);
 	
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 	
@@ -73,14 +77,12 @@
 	var UNIT = 10;
 	var WIDTH = 40;
 	var HEIGHT = 40;
-	var MOVE_RATE = 150;
+	var MOVE_RATE = 200;
 	var SCORE_PER_EGG = 100;
+	var FPS = 24;
 	
 	var CANVAS_WIDTH = WIDTH * UNIT;
 	var CANVAS_HEIGHT = HEIGHT * UNIT;
-	
-	var TITLE_FONT_SIZE = CANVAS_WIDTH / 6;
-	var SUBTITLE_FONT_SIZE = CANVAS_WIDTH / 20;
 	
 	var VALID_ARROW_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 	var ARROW_KEY_TO_OFFSET = {
@@ -94,15 +96,6 @@
 	  ArrowDown: 'ArrowUp',
 	  ArrowLeft: 'ArrowRight',
 	  ArrowRight: 'ArrowLeft'
-	};
-	
-	var INIT_GAME_WORLD = {
-	  head: [Math.floor(WIDTH / 2), Math.floor(HEIGHT / 2)],
-	  body: [[0, 1], [0, 1], [0, 1], [0, 1], [0, 1]],
-	  eggs: [[(0, _utils.randomInt)(0, WIDTH), (0, _utils.randomInt)(0, HEIGHT)], [(0, _utils.randomInt)(0, WIDTH), (0, _utils.randomInt)(0, HEIGHT)], [(0, _utils.randomInt)(0, WIDTH), (0, _utils.randomInt)(0, HEIGHT)]],
-	  isEggBeEaten: false,
-	  isCollision: false,
-	  score: 0
 	};
 	
 	var keyup$ = _rx.Observable.fromEvent(document, 'keyup').pluck('code');
@@ -127,67 +120,80 @@
 	  return ARROW_KEY_TO_OFFSET[arrowKey];
 	});
 	
-	var worldChange$ = nextStep$.scan(function (world, step) {
-	  return (0, _utils.flow)([moveSnake(step), generateEggIfBeEaten, growWhenSnakeEatEgg, calculateScore, checkCollision])(world);
-	}, INIT_GAME_WORLD).startWith(INIT_GAME_WORLD);
+	var INIT_SNAKE = {
+	  head: [Math.floor(WIDTH / 2), Math.floor(HEIGHT / 2)],
+	  body: [[0, 1], [0, 1], [0, 1], [0, 1], [0, 1]]
+	};
+	var snakeSubject = new _rx2.default.BehaviorSubject(INIT_SNAKE);
+	snakeSubject.init = function () {
+	  snakeSubject.onNext(INIT_SNAKE);
+	};
 	
-	function moveSnake(step) {
-	  return function (world) {
-	    var head = world.head,
-	        body = world.body;
+	var eggsSubject = new _rx2.default.BehaviorSubject(randomEggs());
+	eggsSubject.init = function () {
+	  eggsSubject.onNext(randomEggs());
+	};
 	
-	
-	    return _extends({}, world, {
-	      head: [head[0] + step[0], head[1] + step[1]],
-	      body: [[-step[0], -step[1]]].concat(_toConsumableArray(body.slice(0, -1))),
-	      tail: [].concat(_toConsumableArray(body.slice(body.length - 1)))
-	    });
-	  };
+	function randomEggs() {
+	  return [[(0, _utils.randomInt)(0, WIDTH), (0, _utils.randomInt)(0, HEIGHT)], [(0, _utils.randomInt)(0, WIDTH), (0, _utils.randomInt)(0, HEIGHT)], [(0, _utils.randomInt)(0, WIDTH), (0, _utils.randomInt)(0, HEIGHT)]];
 	}
 	
-	function generateEggIfBeEaten(world) {
-	  var head = world.head,
-	      eggs = world.eggs;
+	var eggBeEatenSubject = new _rx2.default.BehaviorSubject(null);
+	eggBeEatenSubject.init = function () {
+	  eggBeEatenSubject.onNext(null);
+	};
+	
+	var eggBeEaten$ = eggBeEatenSubject.filter(function (eggBeEaten) {
+	  return eggBeEaten !== null;
+	});
+	
+	var moveSnake$ = nextStep$.withLatestFrom(snakeSubject, eggsSubject).map(function (_ref) {
+	  var _ref2 = _slicedToArray(_ref, 3),
+	      step = _ref2[0],
+	      snake = _ref2[1],
+	      eggs = _ref2[2];
+	
+	  var head = snake.head,
+	      body = snake.body;
 	
 	
-	  var isEggBeEaten = false;
-	  var newEggs = eggs;
+	  var eatenEgg = getEatenEgg(head, eggs);
 	
+	  var nextBody = eatenEgg ? body : body.slice(0, -1);
+	  var nextSnake = {
+	    head: [head[0] + step[0], head[1] + step[1]],
+	    body: [[-step[0], -step[1]]].concat(_toConsumableArray(nextBody))
+	  };
+	
+	  eggBeEatenSubject.onNext(eatenEgg);
+	  snakeSubject.onNext(nextSnake);
+	
+	  return nextSnake;
+	});
+	
+	function getEatenEgg(head, eggs) {
+	  var eatenEgg = null;
 	  eggs.forEach(function (egg, index) {
 	    if (egg[0] === head[0] && egg[1] === head[1]) {
-	      newEggs = (0, _utils.replaceItem)(eggs, index, randomEggWithout([].concat(_toConsumableArray(eggs), _toConsumableArray(wholeSnake(world)))));
-	      isEggBeEaten = true;
+	      eatenEgg = index;
 	    }
 	  });
 	
-	  return _extends({}, world, {
-	    eggs: newEggs,
-	    isEggBeEaten: isEggBeEaten
-	  });
+	  return eatenEgg;
 	}
 	
-	function growWhenSnakeEatEgg(world) {
-	  var body = world.body,
-	      tail = world.tail,
-	      isEggBeEaten = world.isEggBeEaten;
+	var regenerateEgg$ = eggBeEaten$.withLatestFrom(eggsSubject, snakeSubject).map(function (_ref3) {
+	  var _ref4 = _slicedToArray(_ref3, 3),
+	      eggBeEaten = _ref4[0],
+	      eggs = _ref4[1],
+	      snake = _ref4[2];
 	
+	  var nextEggs = (0, _utils.replaceItem)(eggs, eggBeEaten, randomEggWithout([].concat(_toConsumableArray(eggs), _toConsumableArray(wholeSnake(snake)))));
 	
-	  var newBody = isEggBeEaten ? [].concat(_toConsumableArray(body), [tail]) : body;
-	  return _extends({}, world, {
-	    body: newBody
-	  });
-	}
+	  eggsSubject.onNext(nextEggs);
 	
-	function calculateScore(world) {
-	  var score = world.score,
-	      isEggBeEaten = world.isEggBeEaten;
-	
-	
-	  return _extends({}, world, {
-	    isEggBeEaten: false,
-	    score: score + (isEggBeEaten ? SCORE_PER_EGG : 0)
-	  });
-	}
+	  return nextEggs;
+	});
 	
 	function randomEggWithout() {
 	  var rejectPoints = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : [];
@@ -204,62 +210,71 @@
 	  return result;
 	}
 	
-	function checkCollision(world) {
-	  var head = world.head,
-	      body = world.body;
+	var scoreChanges = eggBeEaten$.scan(function (totalScore) {
+	  return totalScore + SCORE_PER_EGG;
+	}, 0).startWith(0);
 	
-	  var _head = _slicedToArray(head, 2),
-	      headX = _head[0],
-	      headY = _head[1];
+	var gameOver$ = snakeSubject.filter(function (snake) {
+	  return isCollideWithWall(snake) || isSnakeBiteItSelf(snake);
+	}).withLatestFrom(scoreChanges).map(function (_ref5) {
+	  var _ref6 = _slicedToArray(_ref5, 2),
+	      _ = _ref6[0],
+	      score = _ref6[1];
 	
-	  var isCollideWithWall = headX < 0 || headY < 0 || headX >= WIDTH || headY >= HEIGHT;
-	  if (isCollideWithWall) return _extends({}, world, { isCollision: true });
+	  return score;
+	});
 	
-	  var isSnakeBiteItSelf = wholeSnake({ head: head, body: body }).slice(1).some(function (_ref) {
-	    var _ref2 = _slicedToArray(_ref, 2),
-	        jointX = _ref2[0],
-	        jointY = _ref2[1];
+	function isCollideWithWall(snake) {
+	  var _snake$head = _slicedToArray(snake.head, 2),
+	      headX = _snake$head[0],
+	      headY = _snake$head[1];
+	
+	  return headX < 0 || headY < 0 || headX >= WIDTH || headY >= HEIGHT;
+	}
+	
+	function isSnakeBiteItSelf(snake) {
+	  var _snake$head2 = _slicedToArray(snake.head, 2),
+	      headX = _snake$head2[0],
+	      headY = _snake$head2[1];
+	
+	  return wholeSnake(snake).slice(1).some(function (_ref7) {
+	    var _ref8 = _slicedToArray(_ref7, 2),
+	        jointX = _ref8[0],
+	        jointY = _ref8[1];
 	
 	    return jointX === headX && jointY === headY;
 	  });
-	  if (isSnakeBiteItSelf) return _extends({}, world, { isCollision: true });
-	
-	  return world;
 	}
 	
-	var updateScene$ = _rx.Observable.generate(0, function (x) {
-	  return true;
-	}, function (x) {
-	  return x + 1;
-	}, function (x) {
-	  return x;
-	}, _rx.Scheduler.requestAnimationFrame).skipUntil(start$).withLatestFrom(worldChange$, function (_, world) {
-	  return world;
+	var worldPower$ = _rx.Observable.merge(regenerateEgg$, moveSnake$);
+	
+	var updateScene$ = _rx.Observable.interval(1000 / FPS, _rx.Scheduler.requestAnimationFrame).skipUntil(start$).withLatestFrom([snakeSubject, eggsSubject, scoreChanges], function (_, snake, eggs, score) {
+	  return { snake: snake, eggs: eggs, score: score };
 	});
 	
 	var pc = new _paint_canvas2.default('game', { width: CANVAS_WIDTH, height: CANVAS_HEIGHT });
+	var drawer = new _game_drawer2.default(pc, UNIT);
 	startGame();
 	
 	function startGame() {
-	  drawMenu();
-	  var startSubscription = start$.subscribe(resetScene);
-	  var updateSceneSubscription = updateScene$.subscribe(draw);
+	  if (!startGame.isEverStart) {
+	    drawer.drawMenu();
+	    startGame.isEverStart = true;
+	  }
+	  var startSub = start$.subscribe(drawer.resetScene);
+	  var worldPowerSub = worldPower$.subscribe();
+	  var updateSceneSub = updateScene$.subscribe(draw);
+	  var gameOverSub = gameOver$.subscribe(gameOver);
 	
 	  window.disposeGame = function () {
-	    startSubscription.dispose();
-	    updateSceneSubscription.dispose();
+	    snakeSubject.init();
+	    eggsSubject.init();
+	    eggBeEatenSubject.init();
+	    startSub.dispose();
+	    worldPowerSub.dispose();
+	    updateSceneSub.dispose();
+	    gameOverSub.dispose();
 	  };
-	}
-	
-	function drawMenu() {
-	  pc.clear(_colors2.default.bg.menu);
-	  pc.font('bold ' + CANVAS_WIDTH / 5 + 'px monospace');
-	  pc.fillStyle(_colors2.default.yellow);
-	  pc.fillText('Snake', CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.4, CANVAS_WIDTH);
-	
-	  pc.font(CANVAS_WIDTH / 20 + 'px monospace');
-	  pc.fillStyle(_colors2.default.green);
-	  pc.fillText('press "space" to start', CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.6, CANVAS_WIDTH);
 	}
 	
 	function gameOver(score) {
@@ -268,78 +283,28 @@
 	    setHighestScore(score);
 	  }
 	
-	  fadeOutThan(function () {
-	    drawGameOver(score);
+	  drawer.fadeOutThan(function () {
+	    drawer.drawGameOver(score, getHighestScore());
 	    start$.first().subscribe(startGame);
 	  });
 	}
 	
-	function fadeOutThan(afterFinishFadeOut) {
-	  pc.context.globalAlpha = 0.2;
-	  var count = 8;
-	  var fadeOutTimer = setInterval(function () {
-	    pc.clear(_colors2.default.bg.menu);
-	    count--;
-	
-	    if (count === 0) {
-	      clearInterval(fadeOutTimer);
-	      pc.context.globalAlpha = 1;
-	      pc.clear(_colors2.default.bg.menu);
-	      afterFinishFadeOut();
-	    }
-	  }, 100);
-	}
-	
-	function drawGameOver(score) {
-	  pc.clear(_colors2.default.bg.menu);
-	
-	  pc.font('bold ' + TITLE_FONT_SIZE + 'px monospace');
-	  pc.fillStyle(_colors2.default.yellow);
-	  pc.fillText('Game Over', CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.4, CANVAS_WIDTH);
-	
-	  pc.font(SUBTITLE_FONT_SIZE + 'px monospace');
-	  pc.fillStyle(_colors2.default.green);
-	  pc.fillText('your score: ' + score, CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.6, CANVAS_WIDTH);
-	  pc.fillText('highest score: ' + getHighestScore(), CANVAS_WIDTH / 2, CANVAS_HEIGHT * 0.7, CANVAS_WIDTH);
-	}
-	
-	function draw(_ref3) {
-	  var head = _ref3.head,
-	      body = _ref3.body,
-	      eggs = _ref3.eggs,
-	      score = _ref3.score,
-	      isCollision = _ref3.isCollision;
+	function draw(_ref9) {
+	  var snake = _ref9.snake,
+	      eggs = _ref9.eggs,
+	      score = _ref9.score,
+	      isCollision = _ref9.isCollision;
 	
 	  if (isCollision) return gameOver(score);
-	
-	  resetScene();
-	  drawEggs(eggs);
-	  drawSnake({ head: head, body: body });
-	  drawScore(score);
+	  drawer.resetScene();
+	  drawer.drawEggs(eggs);
+	  drawer.drawSnake(wholeSnake(snake));
+	  drawer.drawScore(score);
 	}
 	
-	function resetScene() {
-	  pc.clear(_colors2.default.bg.gaming);
-	}
-	
-	function drawEggs(eggs) {
-	  eggs.forEach(function (egg, _) {
-	    pc.fillStyle(_colors2.default.yellow);
-	    pc.strokeStyle(_colors2.default.yellow);
-	    pc.fillRect(egg[0] * UNIT, egg[1] * UNIT, UNIT, UNIT);
-	    pc.strokeRect(egg[0] * UNIT, egg[1] * UNIT, UNIT, UNIT);
-	  });
-	}
-	
-	function drawSnake(snake) {
-	  wholeSnake(snake).forEach(function (position) {
-	    drawSnakeJoint(position[0], position[1]);
-	  });
-	}
-	
-	function wholeSnake(_ref4) {
-	  var head = _ref4.head,
-	      body = _ref4.body;
+	function wholeSnake(_ref10) {
+	  var head = _ref10.head,
+	      body = _ref10.body;
 	
 	  var wholeSnake = [];[[0, 0]].concat(_toConsumableArray(body)).reduce(function (acc, current) {
 	    var position = [acc[0] + current[0], acc[1] + current[1]];
@@ -348,18 +313,6 @@
 	  }, head);
 	
 	  return wholeSnake;
-	}
-	
-	function drawScore(score) {
-	  pc.font('14px sans-serif');
-	  pc.fillStyle(_colors2.default.yellow);
-	  pc.context.textAlign = 'right';
-	  pc.context.fillText('$ ' + score, CANVAS_WIDTH - 10, 20);
-	}
-	
-	function drawSnakeJoint(x, y) {
-	  pc.strokeStyle('green');
-	  pc.strokeRect(x * UNIT, y * UNIT, UNIT, UNIT);
 	}
 	
 	function getHighestScore() {
@@ -386,6 +339,164 @@
 /* 3 */,
 /* 4 */,
 /* 5 */
+/***/ function(module, exports) {
+
+	// removed by extract-text-webpack-plugin
+
+/***/ },
+/* 6 */,
+/* 7 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	__webpack_require__(8);
+
+/***/ },
+/* 8 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/**
+	 * isMobile.js v0.4.0
+	 *
+	 * A simple library to detect Apple phones and tablets,
+	 * Android phones and tablets, other mobile devices (like blackberry, mini-opera and windows phone),
+	 * and any kind of seven inch device, via user agent sniffing.
+	 *
+	 * @author: Kai Mallea (kmallea@gmail.com)
+	 *
+	 * @license: http://creativecommons.org/publicdomain/zero/1.0/
+	 */
+	(function (global) {
+	
+	    var apple_phone         = /iPhone/i,
+	        apple_ipod          = /iPod/i,
+	        apple_tablet        = /iPad/i,
+	        android_phone       = /(?=.*\bAndroid\b)(?=.*\bMobile\b)/i, // Match 'Android' AND 'Mobile'
+	        android_tablet      = /Android/i,
+	        amazon_phone        = /(?=.*\bAndroid\b)(?=.*\bSD4930UR\b)/i,
+	        amazon_tablet       = /(?=.*\bAndroid\b)(?=.*\b(?:KFOT|KFTT|KFJWI|KFJWA|KFSOWI|KFTHWI|KFTHWA|KFAPWI|KFAPWA|KFARWI|KFASWI|KFSAWI|KFSAWA)\b)/i,
+	        windows_phone       = /IEMobile/i,
+	        windows_tablet      = /(?=.*\bWindows\b)(?=.*\bARM\b)/i, // Match 'Windows' AND 'ARM'
+	        other_blackberry    = /BlackBerry/i,
+	        other_blackberry_10 = /BB10/i,
+	        other_opera         = /Opera Mini/i,
+	        other_chrome        = /(CriOS|Chrome)(?=.*\bMobile\b)/i,
+	        other_firefox       = /(?=.*\bFirefox\b)(?=.*\bMobile\b)/i, // Match 'Firefox' AND 'Mobile'
+	        seven_inch = new RegExp(
+	            '(?:' +         // Non-capturing group
+	
+	            'Nexus 7' +     // Nexus 7
+	
+	            '|' +           // OR
+	
+	            'BNTV250' +     // B&N Nook Tablet 7 inch
+	
+	            '|' +           // OR
+	
+	            'Kindle Fire' + // Kindle Fire
+	
+	            '|' +           // OR
+	
+	            'Silk' +        // Kindle Fire, Silk Accelerated
+	
+	            '|' +           // OR
+	
+	            'GT-P1000' +    // Galaxy Tab 7 inch
+	
+	            ')',            // End non-capturing group
+	
+	            'i');           // Case-insensitive matching
+	
+	    var match = function(regex, userAgent) {
+	        return regex.test(userAgent);
+	    };
+	
+	    var IsMobileClass = function(userAgent) {
+	        var ua = userAgent || navigator.userAgent;
+	
+	        // Facebook mobile app's integrated browser adds a bunch of strings that
+	        // match everything. Strip it out if it exists.
+	        var tmp = ua.split('[FBAN');
+	        if (typeof tmp[1] !== 'undefined') {
+	            ua = tmp[0];
+	        }
+	
+	        // Twitter mobile app's integrated browser on iPad adds a "Twitter for
+	        // iPhone" string. Same probable happens on other tablet platforms.
+	        // This will confuse detection so strip it out if it exists.
+	        tmp = ua.split('Twitter');
+	        if (typeof tmp[1] !== 'undefined') {
+	            ua = tmp[0];
+	        }
+	
+	        this.apple = {
+	            phone:  match(apple_phone, ua),
+	            ipod:   match(apple_ipod, ua),
+	            tablet: !match(apple_phone, ua) && match(apple_tablet, ua),
+	            device: match(apple_phone, ua) || match(apple_ipod, ua) || match(apple_tablet, ua)
+	        };
+	        this.amazon = {
+	            phone:  match(amazon_phone, ua),
+	            tablet: !match(amazon_phone, ua) && match(amazon_tablet, ua),
+	            device: match(amazon_phone, ua) || match(amazon_tablet, ua)
+	        };
+	        this.android = {
+	            phone:  match(amazon_phone, ua) || match(android_phone, ua),
+	            tablet: !match(amazon_phone, ua) && !match(android_phone, ua) && (match(amazon_tablet, ua) || match(android_tablet, ua)),
+	            device: match(amazon_phone, ua) || match(amazon_tablet, ua) || match(android_phone, ua) || match(android_tablet, ua)
+	        };
+	        this.windows = {
+	            phone:  match(windows_phone, ua),
+	            tablet: match(windows_tablet, ua),
+	            device: match(windows_phone, ua) || match(windows_tablet, ua)
+	        };
+	        this.other = {
+	            blackberry:   match(other_blackberry, ua),
+	            blackberry10: match(other_blackberry_10, ua),
+	            opera:        match(other_opera, ua),
+	            firefox:      match(other_firefox, ua),
+	            chrome:       match(other_chrome, ua),
+	            device:       match(other_blackberry, ua) || match(other_blackberry_10, ua) || match(other_opera, ua) || match(other_firefox, ua) || match(other_chrome, ua)
+	        };
+	        this.seven_inch = match(seven_inch, ua);
+	        this.any = this.apple.device || this.android.device || this.windows.device || this.other.device || this.seven_inch;
+	
+	        // excludes 'other' devices and ipods, targeting touchscreen phones
+	        this.phone = this.apple.phone || this.android.phone || this.windows.phone;
+	
+	        // excludes 7 inch devices, classifying as phone or tablet is left to the user
+	        this.tablet = this.apple.tablet || this.android.tablet || this.windows.tablet;
+	
+	        if (typeof window === 'undefined') {
+	            return this;
+	        }
+	    };
+	
+	    var instantiate = function() {
+	        var IM = new IsMobileClass();
+	        IM.Class = IsMobileClass;
+	        return IM;
+	    };
+	
+	    if (typeof module !== 'undefined' && module.exports && typeof window === 'undefined') {
+	        //node
+	        module.exports = IsMobileClass;
+	    } else if (typeof module !== 'undefined' && module.exports && typeof window !== 'undefined') {
+	        //browserify
+	        module.exports = instantiate();
+	    } else if (true) {
+	        //AMD
+	        !(__WEBPACK_AMD_DEFINE_ARRAY__ = [], __WEBPACK_AMD_DEFINE_FACTORY__ = (global.isMobile = instantiate()), __WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ? (__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
+	    } else {
+	        global.isMobile = instantiate();
+	    }
+	
+	})(this);
+
+
+/***/ },
+/* 9 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var __WEBPACK_AMD_DEFINE_RESULT__;/* WEBPACK VAR INJECTION */(function(module, global, process) {// Copyright (c) Microsoft, All rights reserved. See License.txt in the project root for license information.
@@ -12777,10 +12888,10 @@
 	
 	}.call(this));
 	
-	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(6)(module), (function() { return this; }()), __webpack_require__(7)))
+	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(10)(module), (function() { return this; }()), __webpack_require__(11)))
 
 /***/ },
-/* 6 */
+/* 10 */
 /***/ function(module, exports) {
 
 	module.exports = function(module) {
@@ -12796,7 +12907,7 @@
 
 
 /***/ },
-/* 7 */
+/* 11 */
 /***/ function(module, exports) {
 
 	// shim for using process in browser
@@ -12982,7 +13093,7 @@
 
 
 /***/ },
-/* 8 */
+/* 12 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/* WEBPACK VAR INJECTION */(function(module, global) {// Copyright (c) Microsoft, Inc. All rights reserved. See License.txt in the project root for license information.
@@ -13008,7 +13119,7 @@
 	
 	  // Because of build optimizers
 	  if (true) {
-	    !(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(5)], __WEBPACK_AMD_DEFINE_RESULT__ = function (Rx, exports) {
+	    !(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(9)], __WEBPACK_AMD_DEFINE_RESULT__ = function (Rx, exports) {
 	      return factory(root, exports, Rx);
 	    }.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
 	  } else if (typeof module === 'object' && module && module.exports === freeExports) {
@@ -14371,10 +14482,10 @@
 	
 	  return Rx;
 	}));
-	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(6)(module), (function() { return this; }())))
+	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(10)(module), (function() { return this; }())))
 
 /***/ },
-/* 9 */
+/* 13 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -14486,7 +14597,136 @@
 	exports.default = PaintCanvas;
 
 /***/ },
-/* 10 */
+/* 14 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+	
+	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+	
+	var _colors = __webpack_require__(15);
+	
+	var _colors2 = _interopRequireDefault(_colors);
+	
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+	
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+	
+	var GameDrawer = function () {
+	  function GameDrawer(paintCanvas, unit) {
+	    _classCallCheck(this, GameDrawer);
+	
+	    this.pc = paintCanvas;
+	    this.unit = unit;
+	    this.canvas = paintCanvas.context.canvas;
+	    this.resetScene = this.resetScene.bind(this);
+	  }
+	
+	  _createClass(GameDrawer, [{
+	    key: 'drawScore',
+	    value: function drawScore(score) {
+	      this.pc.font('14px sans-serif');
+	      this.pc.fillStyle(_colors2.default.yellow);
+	      this.pc.context.textAlign = 'right';
+	      this.pc.context.fillText('$ ' + score, this.canvas.width - 10, 20);
+	    }
+	  }, {
+	    key: 'drawSnakeJoint',
+	    value: function drawSnakeJoint(x, y) {
+	      var unit = this.unit;
+	      this.pc.strokeStyle('green');
+	      this.pc.strokeRect(x * unit, y * unit, unit, unit);
+	    }
+	  }, {
+	    key: 'resetScene',
+	    value: function resetScene() {
+	      this.pc.clear(_colors2.default.bg.gaming);
+	    }
+	  }, {
+	    key: 'drawEggs',
+	    value: function drawEggs(eggs) {
+	      var _this = this;
+	
+	      var unit = this.unit;
+	      eggs.forEach(function (egg, _) {
+	        _this.pc.fillStyle(_colors2.default.yellow);
+	        _this.pc.strokeStyle(_colors2.default.yellow);
+	        _this.pc.fillRect(egg[0] * unit, egg[1] * unit, unit, unit);
+	        _this.pc.strokeRect(egg[0] * unit, egg[1] * unit, unit, unit);
+	      });
+	    }
+	  }, {
+	    key: 'drawSnake',
+	    value: function drawSnake(snakeBody) {
+	      var _this2 = this;
+	
+	      snakeBody.forEach(function (position) {
+	        _this2.drawSnakeJoint(position[0], position[1]);
+	      });
+	    }
+	  }, {
+	    key: 'fadeOutThan',
+	    value: function fadeOutThan(afterFinishFadeOut) {
+	      var _this3 = this;
+	
+	      this.pc.context.globalAlpha = 0.2;
+	      var count = 8;
+	      var fadeOutTimer = setInterval(function () {
+	        _this3.pc.clear(_colors2.default.bg.menu);
+	        count--;
+	
+	        if (count === 0) {
+	          clearInterval(fadeOutTimer);
+	          _this3.pc.context.globalAlpha = 1;
+	          _this3.pc.clear(_colors2.default.bg.menu);
+	          afterFinishFadeOut();
+	        }
+	      }, 100);
+	    }
+	  }, {
+	    key: 'drawGameOver',
+	    value: function drawGameOver(score, highestScore) {
+	      var canvas = this.canvas;
+	      var titleSize = canvas.width / 6;
+	      var subtitleSize = canvas.width / 20;
+	      this.pc.clear(_colors2.default.bg.menu);
+	
+	      this.pc.font('bold ' + titleSize + 'px monospace');
+	      this.pc.fillStyle(_colors2.default.yellow);
+	      this.pc.fillText('Game Over', canvas.width / 2, canvas.height * 0.4, canvas.width);
+	
+	      this.pc.font(subtitleSize + 'px monospace');
+	      this.pc.fillStyle(_colors2.default.green);
+	      this.pc.fillText('your score: ' + score, canvas.width / 2, canvas.height * 0.6, canvas.width);
+	      this.pc.fillText('highest score: ' + highestScore, canvas.width / 2, canvas.height * 0.7, canvas.width);
+	    }
+	  }, {
+	    key: 'drawMenu',
+	    value: function drawMenu() {
+	      var canvas = this.canvas;
+	
+	      this.pc.clear(_colors2.default.bg.menu);
+	      this.pc.font('bold ' + canvas.width / 5 + 'px monospace');
+	      this.pc.fillStyle(_colors2.default.yellow);
+	      this.pc.fillText('Snake', canvas.width / 2, canvas.height * 0.4, canvas.width);
+	
+	      this.pc.font(canvas.width / 20 + 'px monospace');
+	      this.pc.fillStyle(_colors2.default.green);
+	      this.pc.fillText('press "space" to start', canvas.width / 2, canvas.height * 0.6, canvas.width);
+	    }
+	  }]);
+	
+	  return GameDrawer;
+	}();
+	
+	exports.default = GameDrawer;
+
+/***/ },
+/* 15 */
 /***/ function(module, exports) {
 
 	'use strict';
@@ -14506,7 +14746,7 @@
 	};
 
 /***/ },
-/* 11 */
+/* 16 */
 /***/ function(module, exports) {
 
 	'use strict';
