@@ -20234,8 +20234,6 @@
 	    volume: 0.7
 	  });
 	
-	  bgSound.play();
-	
 	  var width = drawer.width;
 	  var height = drawer.height;
 	
@@ -20247,6 +20245,10 @@
 	    return ARROW_KEY_TO_OFFSET[arrowKey];
 	  }).distinctUntilChanged(function (keyOne, keyTwo) {
 	    return keyOne[0] + keyTwo[0] === 0 && keyOne[1] + keyTwo[1] === 0;
+	  }).share();
+	
+	  snakeManualMove$.first().subscribe(function () {
+	    return bgSound.play();
 	  });
 	
 	  var frame$ = _Rx2.default.Observable.interval(FRAME_RATE, _Rx2.default.Scheduler.requestAnimationFrame).share();
