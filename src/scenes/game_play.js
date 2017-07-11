@@ -34,8 +34,6 @@ export default function gamePlay ({ drawer, done }) {
     volume: 0.7,
   })
 
-  bgSound.play()
-
   const width = drawer.width
   const height = drawer.height
 
@@ -48,6 +46,11 @@ export default function gamePlay ({ drawer, done }) {
     .distinctUntilChanged((keyOne, keyTwo) =>
       keyOne[0] + keyTwo[0] === 0 && keyOne[1] + keyTwo[1] === 0
     )
+    .share()
+
+  snakeManualMove$
+    .first()
+    .subscribe(() => bgSound.play())
 
   const frame$ = Rx.Observable
     .interval(FRAME_RATE, Rx.Scheduler.requestAnimationFrame)
