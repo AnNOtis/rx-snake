@@ -4,6 +4,8 @@ class GameDrawer {
   constructor (paintCanvas, unit) {
     this.pc = paintCanvas
     this.unit = unit
+    this.width = paintCanvas.width / unit // game world width
+    this.height = paintCanvas.height / unit // game world height
     this.canvas = paintCanvas.context.canvas
     this.resetScene = this.resetScene.bind(this)
   }
@@ -57,7 +59,7 @@ class GameDrawer {
     }, 100)
   }
 
-  drawGameOver (score, highestScore) {
+  drawGameOver (score, highestScore = 0) {
     const canvas = this.canvas
     const titleSize = canvas.width / 6
     const subtitleSize = canvas.width / 20

@@ -1,5 +1,4 @@
 import Rx from 'rxjs/Rx'
-import GameDrawer from 'game_drawer'
 
 import {
   levelMapToSpeed,
@@ -9,10 +8,6 @@ import {
   wholeSnake,
   initWorld,
 } from 'game_rule'
-
-// Screen
-const WIDTH = 40
-const HEIGHT = 40
 
 // Game Config
 const START_LEVEL = 1
@@ -26,7 +21,10 @@ const ARROW_KEY_TO_OFFSET = {
   ArrowRight: [ 1, 0 ],
 }
 
-export default function gamePlay (preparedCanvas) {
+export default function gamePlay ({ drawer, done }) {
+  const width = drawer.width
+  const height = drawer.height
+
   const pressArrowKey$ = Rx.Observable.fromEvent(document, 'keyup')
     .pluck('code')
     .filter((code) => VALID_ARROW_KEYS.indexOf(code) !== -1)
@@ -74,18 +72,21 @@ export default function gamePlay (preparedCanvas) {
 
   const nextStep$ = Rx.Observable.merge(snakeManualMove$, snakeAutoMove$)
 
-  const initialWorld = initWorld(WIDTH, HEIGHT)
+  const initialWorld = initWorld(width, height)
   const worldRunner$ = nextStep$.scan((world, step) => {
-    if (isCollideWithWall(world.snake, WIDTH, HEIGHT)) throw new Error('Game Over')
-    if (isSnakeBiteItSelf(world.snake)) throw new Error('Game Over')
+    if (
+      isCollideWithWall(world.snake, width, height) ||
+      isSnakeBiteItSelf(world.snake)
+    ) {
+      const error = new Error('Game Over')
+      error.world = world
+      throw error
+    }
 
-    return nextWorld(world, step, WIDTH, HEIGHT, {
+    return nextWorld(world, step, width, height, {
       onEatingEgg: () => eatingEggSubject$.next(),
     })
   }, initialWorld)
-
-  const UNIT = preparedCanvas.width / WIDTH
-  const drawer = new GameDrawer(preparedCanvas, UNIT)
 
   function draw ({ snake, eggs, score }) {
     drawer.resetScene()
@@ -95,5 +96,5 @@ export default function gamePlay (preparedCanvas) {
   }
 
   draw(initialWorld)
-  worldRunner$.subscribe(draw)
+  worldRunner$.subscribe(draw, err => done(err.world))
 }
