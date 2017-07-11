@@ -30,6 +30,11 @@ module.exports = {
           'css-loader?sourceMap'
         ),
       },
+      {
+        test: /\.mp3/,
+        include: PATH.src,
+        loader: 'file-loader',
+      },
     ],
   },
   plugins: [
