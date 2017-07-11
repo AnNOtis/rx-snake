@@ -1,7 +1,7 @@
 // manipulate canvas using center mode
 export default class PaintCanvas {
   constructor (domID, options = {}) {
-    const dom = document.getElementById('game')
+    const dom = document.getElementById(domID)
     const {
       width = dom.clientWidth,
       height = dom.clientWidth,
@@ -9,7 +9,8 @@ export default class PaintCanvas {
 
     const canvas = document.createElement('canvas')
     this.id = canvas.id = this._generateID()
-    canvas.width = width
+    this.width = canvas.width = width
+    this.height = canvas.width = width
     canvas.height = height
     dom.appendChild(canvas)
 

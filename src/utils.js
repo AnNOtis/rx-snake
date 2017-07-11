@@ -24,6 +24,30 @@ export function flow (funcs) {
   }
 }
 
+export function isObject (value) {
+  const type = typeof value
+  return value != null && (type === 'object' || type === 'function')
+}
+
+export function isArray (value) {
+  return Array.isArray(value)
+}
+
+export function isInteger (value) {
+  return typeof value === 'number'
+    && isFinite(value)
+    && Math.floor(value) === value
+}
+
+export function createArray (arrLength, processser) {
+  const arr = []
+  for (let i = 0; i < arrLength; i++) {
+    arr.push(processser(i))
+  }
+
+  return arr
+}
+
 export function randomInt (min, max) {
   return Math.floor(Math.random() * (max - min)) + min
 }

@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "ismobilejs": "^0.4.0",
-    "rx": "^4.1.0",
-    "rx-dom": "^7.0.3"
+    "rx-dom": "^7.0.3",
+    "rxjs": "^5.4.2"
   },
   "devDependencies": {
     "babel-core": "^6.18.2",
