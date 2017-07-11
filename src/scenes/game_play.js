@@ -1,4 +1,5 @@
 import Rx from 'rxjs/Rx'
+import { Howl } from 'howler'
 
 import {
   levelMapToSpeed,
@@ -22,6 +23,19 @@ const ARROW_KEY_TO_OFFSET = {
 }
 
 export default function gamePlay ({ drawer, done }) {
+  const bgSound = new Howl({
+    src: [ require('sounds/snake_bg.mp3') ],
+    loop: true,
+    volume: 0.5,
+  })
+
+  const eatingSound = new Howl({
+    src: [ require('sounds/blink.mp3') ],
+    volume: 0.7,
+  })
+
+  bgSound.play()
+
   const width = drawer.width
   const height = drawer.height
 
@@ -96,5 +110,11 @@ export default function gamePlay ({ drawer, done }) {
   }
 
   draw(initialWorld)
-  worldRunner$.subscribe(draw, err => done(err.world))
+  eatingEggSubject$.subscribe(() => {
+    eatingSound.play()
+  })
+  worldRunner$.subscribe(draw, err => {
+    done(err.world)
+    bgSound.fade(0.7, 0, 1000)
+  })
 }

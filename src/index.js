@@ -4,9 +4,9 @@ import './github_corner.css'
 import PaintCanvas from 'paint_canvas'
 import GameDrawer from 'game_drawer'
 
-import menu from 'scene/menu'
-import gamePlay from 'scene/game_play'
-import gameOver from 'scene/game_over'
+import menu from 'scenes/menu'
+import gamePlay from 'scenes/game_play'
+import gameOver from 'scenes/game_over'
 
 const CANVAS_WIDTH = 400
 const CANVAS_HEIGHT = 400

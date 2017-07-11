@@ -23,5 +23,7 @@ function getHighestScore () {
 
 function setHighestScore (score) {
   if (!score) return
+  if (score < getHighestScore()) return
+
   localStorage.setItem('highestScore', score)
 }
