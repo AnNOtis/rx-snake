@@ -63,6 +63,7 @@ export default function gamePlay ({ drawer, done }) {
     .scan((point, value) => point + value, 0)
     .map(point => START_LEVEL + Math.floor(point / 60))
     .distinctUntilChanged()
+    .share()
 
   const snakeSpeed$ = gameLevel$
     .map(levelMapToSpeed)
@@ -105,19 +106,20 @@ export default function gamePlay ({ drawer, done }) {
     })
   }, initialWorld)
 
-  function draw ({ snake, eggs, score }) {
+  function draw ({ snake, eggs, score, level = START_LEVEL }) {
     drawer.resetScene()
     drawer.drawEggs(eggs)
     drawer.drawSnake(wholeSnake(snake))
     drawer.drawScore(score)
+    drawer.drawLevel(level)
   }
 
   draw(initialWorld)
-  eatingEggSubject$.subscribe(() => {
-    eatingSound.play()
-  })
-  worldRunner$.subscribe(draw, err => {
-    done(err.world)
-    bgSound.fade(0.7, 0, 1000)
-  })
+  eatingEggSubject$.subscribe(() => eatingSound.play())
+  worldRunner$
+    .withLatestFrom(gameLevel$, (world, level) => ({ ...world, level }))
+    .subscribe(draw, err => {
+      done(err.world)
+      bgSound.fade(0.7, 0, 1000)
+    })
 }

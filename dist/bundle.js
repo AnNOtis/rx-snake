@@ -255,6 +255,14 @@
 	  }
 	
 	  _createClass(GameDrawer, [{
+	    key: 'drawLevel',
+	    value: function drawLevel(level) {
+	      this.pc.font('14px sans-serif');
+	      this.pc.fillStyle(_colors2.default.yellow);
+	      this.pc.context.textAlign = 'left';
+	      this.pc.context.fillText('Lv. ' + level, 10, 20);
+	    }
+	  }, {
 	    key: 'drawScore',
 	    value: function drawScore(score) {
 	      this.pc.font('14px sans-serif');
@@ -20195,6 +20203,9 @@
 	Object.defineProperty(exports, "__esModule", {
 	  value: true
 	});
+	
+	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+	
 	exports.default = gamePlay;
 	
 	var _Rx = __webpack_require__(11);
@@ -20259,7 +20270,7 @@
 	    return point + value;
 	  }, 0).map(function (point) {
 	    return START_LEVEL + Math.floor(point / 60);
-	  }).distinctUntilChanged();
+	  }).distinctUntilChanged().share();
 	
 	  var snakeSpeed$ = gameLevel$.map(_game_rule.levelMapToSpeed).distinctUntilChanged().do(function (v) {
 	    return console.log('speed', v);
@@ -20307,19 +20318,24 @@
 	  function draw(_ref4) {
 	    var snake = _ref4.snake,
 	        eggs = _ref4.eggs,
-	        score = _ref4.score;
+	        score = _ref4.score,
+	        _ref4$level = _ref4.level,
+	        level = _ref4$level === undefined ? START_LEVEL : _ref4$level;
 	
 	    drawer.resetScene();
 	    drawer.drawEggs(eggs);
 	    drawer.drawSnake((0, _game_rule.wholeSnake)(snake));
 	    drawer.drawScore(score);
+	    drawer.drawLevel(level);
 	  }
 	
 	  draw(initialWorld);
 	  eatingEggSubject$.subscribe(function () {
-	    eatingSound.play();
+	    return eatingSound.play();
 	  });
-	  worldRunner$.subscribe(draw, function (err) {
+	  worldRunner$.withLatestFrom(gameLevel$, function (world, level) {
+	    return _extends({}, world, { level: level });
+	  }).subscribe(draw, function (err) {
 	    done(err.world);
 	    bgSound.fade(0.7, 0, 1000);
 	  });
