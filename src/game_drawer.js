@@ -10,6 +10,13 @@ class GameDrawer {
     this.resetScene = this.resetScene.bind(this)
   }
 
+  drawLevel (level) {
+    this.pc.font('14px sans-serif')
+    this.pc.fillStyle(COLORS.yellow)
+    this.pc.context.textAlign = 'left'
+    this.pc.context.fillText(`Lv. ${level}`, 10, 20)
+  }
+
   drawScore (score) {
     this.pc.font('14px sans-serif')
     this.pc.fillStyle(COLORS.yellow)
