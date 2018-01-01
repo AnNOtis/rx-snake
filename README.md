@@ -4,7 +4,7 @@
 
 Made just for fun. [Play it here!](https://annotis.github.io/rx-snake)
 
-![Rx Snake](https://dl.dropboxusercontent.com/s/tg8jgh6itv3aeay/3549DD7B-D935-4C18-8A24-5B6DC5E0BAB7-73499-0000BABF8CC96015.gif?dl=0)
+<img src="https://raw.githubusercontent.com/AnNOtis/rx-snake/master/misc/screenshot.png" width="360" />
 
 - **[space]** - Start
 - **[ ← ↑ → ↓ ]** - Directions
